@@ -86,6 +86,43 @@ function updateHTML(galleryData) {
             console.log('ℹ️  Немає нових фото для додавання');
         }
 
+        // Видаляємо фото, яких немає в Instagram
+        let deletedCount = 0;
+        if (galleryData && galleryData.posts) {
+            // Отримуємо список поточних Instagram фото з метаданих
+            const currentInstagramPhotos = new Set(
+                galleryData.posts.map(post => post.filename)
+            );
+
+            // Перевіряємо всі фото в HTML
+            gallery.find('img').each((i, elem) => {
+                const src = $(elem).attr('src');
+                if (src) {
+                    const filename = path.basename(src);
+
+                    // Якщо це Instagram фото (за форматом імені) і його немає в поточному списку
+                    if (filename.match(/^\d{4}[-_]\d{2}[-_]\d{2}.*\.jpg$/i) &&
+                        !currentInstagramPhotos.has(filename)) {
+
+                        // Видаляємо з HTML
+                        $(elem).parent('.gallery-item-wrapper').remove();
+
+                        // Видаляємо файл з диску
+                        const filePath = path.join(IMAGES_DIR, filename);
+                        if (fs.existsSync(filePath)) {
+                            fs.unlinkSync(filePath);
+                            console.log(`🗑️  Видалено: ${filename}`);
+                            deletedCount++;
+                        }
+                    }
+                }
+            });
+        }
+
+        if (deletedCount > 0) {
+            console.log(`\n🗑️  Видалено ${deletedCount} фото, яких немає в Instagram`);
+        }
+
         // Додаємо коментар з датою оновлення
         const updateComment = `\n    <!-- Останнє оновлення: ${new Date().toLocaleString('uk-UA')} -->`;
         gallery.after(updateComment);

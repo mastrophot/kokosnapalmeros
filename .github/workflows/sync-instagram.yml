@@ -2,9 +2,8 @@ name: Sync Instagram Photos
 
 on:
   schedule:
-    # Запускається щодня о 12:00 UTC (14:00 за київським часом)
-    - cron: '0 12 * * *'
-  workflow_dispatch: # Дозволяє ручний запуск
+    - cron: '0 * * * *'  # Кожну годину
+  workflow_dispatch:  # Дозволяє запускати вручну:
 
 jobs:
   sync:
