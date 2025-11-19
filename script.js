@@ -17,21 +17,8 @@ document.addEventListener('DOMContentLoaded', () => {
         },
     });
 
-    // Паралакс ефект
-    const gallery = document.querySelector('.gallery');
-    const items = document.querySelectorAll('.gallery-item-wrapper');
-
-    window.addEventListener('scroll', () => {
-        const scrolled = window.pageYOffset;
-        
-        items.forEach((item, index) => {
-            const speed = 0.1 + (index * 0.05);
-            const yPos = -(scrolled * speed);
-            item.style.transform = `translateY(${yPos}px)`;
-        });
-    });
-
     // Плавна анімація при появі
+    const items = document.querySelectorAll('.gallery-item-wrapper');
     const observerOptions = {
         threshold: 0.1
     };
@@ -48,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     items.forEach(item => {
         item.style.opacity = '0';
         item.style.transform = 'translateY(50px)';
+        item.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
         observer.observe(item);
     });
 });

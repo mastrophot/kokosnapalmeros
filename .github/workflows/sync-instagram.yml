@@ -1,0 +1,48 @@
+name: Sync Instagram Photos
+
+on:
+  schedule:
+    # Запускається щодня о 12:00 UTC (14:00 за київським часом)
+    - cron: '0 12 * * *'
+  workflow_dispatch: # Дозволяє ручний запуск
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt
+          
+      - name: Install Node.js dependencies
+        run: |
+          npm install
+          
+      - name: Download Instagram photos
+        run: |
+          python3 sync-instagram.py --limit 20
+          
+      - name: Update gallery HTML
+        run: |
+          node update-gallery.js
+          
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add images/ gallery-data.json index.html
+          git diff --quiet && git diff --staged --quiet || (git commit -m "🤖 Auto-sync: Update gallery from Instagram" && git push)
