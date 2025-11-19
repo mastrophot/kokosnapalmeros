@@ -134,14 +134,14 @@ header {
 
     /* Зменшуємо аватарку на мобільному */
     .profile-image {
-        width: 64px;
+        width: 64px !important;
         /* Вдвічі менше ніж на десктопі */
-        height: 64px;
+        height: 64px !important;
     }
 
     .profile-link {
-        top: 15px;
-        right: 15px;
+        top: 15px !important;
+        right: 15px !important;
     }
 }
 
