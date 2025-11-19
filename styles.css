@@ -132,16 +132,9 @@ header {
         gap: 1rem;
     }
 
-    /* Зменшуємо аватарку на мобільному */
-    .profile-image {
-        width: 64px !important;
-        /* Вдвічі менше ніж на десктопі */
-        height: 64px !important;
-    }
-
+    /* Ховаємо аватарку на мобільному */
     .profile-link {
-        top: 15px !important;
-        right: 15px !important;
+        display: none !important;
     }
 }
 
