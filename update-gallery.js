@@ -4,25 +4,25 @@
  * Оновлює index.html новими фото з gallery-data.json
  */
 
-const fs = require('fs');
-const path = require('path');
-const cheerio = require('cheerio');
+const fs = require("fs");
+const path = require("path");
+const cheerio = require("cheerio");
 
-const METADATA_FILE = 'gallery-data.json';
-const HTML_FILE = 'index.html';
-const IMAGES_DIR = 'images';
+const METADATA_FILE = "gallery-data.json";
+const HTML_FILE = "index.html";
+const IMAGES_DIR = "images";
 
 /**
  * Читає метадані галереї
  */
 function readGalleryData() {
-    try {
-        const data = fs.readFileSync(METADATA_FILE, 'utf-8');
-        return JSON.parse(data);
-    } catch (error) {
-        console.error('❌ Помилка читання gallery-data.json:', error.message);
-        return null;
-    }
+  try {
+    const data = fs.readFileSync(METADATA_FILE, "utf-8");
+    return JSON.parse(data);
+  } catch (error) {
+    console.error("❌ Помилка читання gallery-data.json:", error.message);
+    return null;
+  }
 }
 
 /**
@@ -42,14 +42,8 @@ function updateHTML(galleryData) {
             return false;
         }
 
-        // Отримуємо існуючі фото
-        const existingImages = new Set();
-        gallery.find('img').each((i, elem) => {
-            const src = $(elem).attr('src');
-            if (src) {
-                existingImages.add(path.basename(src));
-            }
-        });
+        // Очищаємо галерею для повного оновлення
+        gallery.empty();
 
         // Отримуємо всі Instagram фото з папки images
         const instagramPhotos = [];
@@ -57,7 +51,7 @@ function updateHTML(galleryData) {
 
         files.forEach(file => {
             // Шукаємо файли з датою в форматі YYYY-MM-DD або YYYY (Instagram фото)
-            if (file.match(/^\d{4}[-_]\d{2}[-_]\d{2}.*\.jpg$/i) && !existingImages.has(file)) {
+            if (file.match(/^\d{4}[-_]\d{2}[-_]\d{2}.*\.jpg$/i)) {
                 instagramPhotos.push(file);
             }
         });
@@ -65,7 +59,7 @@ function updateHTML(galleryData) {
         // Сортуємо за датою (найновіші спочатку)
         instagramPhotos.sort().reverse();
 
-        // Додаємо нові фото
+        // Додаємо всі фото
         let addedCount = 0;
         instagramPhotos.forEach(filename => {
             const imagePath = `./images/${filename}`;
@@ -76,52 +70,11 @@ function updateHTML(galleryData) {
                     <img src="${imagePath}" alt="${caption}" class="gallery-item">
                 </a>`;
 
-            // Додаємо в кінець (масив вже відсортовано від нових до старих)
             gallery.append(galleryItem);
             addedCount++;
-            console.log(`✅ Додано: ${filename}`);
         });
 
-        if (addedCount === 0) {
-            console.log('ℹ️  Немає нових фото для додавання');
-        }
-
-        // Видаляємо фото, яких немає в Instagram
-        let deletedCount = 0;
-        if (galleryData && galleryData.posts) {
-            // Отримуємо список поточних Instagram фото з метаданих
-            const currentInstagramPhotos = new Set(
-                galleryData.posts.map(post => post.filename)
-            );
-
-            // Перевіряємо всі фото в HTML
-            gallery.find('img').each((i, elem) => {
-                const src = $(elem).attr('src');
-                if (src) {
-                    const filename = path.basename(src);
-
-                    // Якщо це Instagram фото (за форматом імені) і його немає в поточному списку
-                    if (filename.match(/^\d{4}[-_]\d{2}[-_]\d{2}.*\.jpg$/i) &&
-                        !currentInstagramPhotos.has(filename)) {
-
-                        // Видаляємо з HTML
-                        $(elem).parent('.gallery-item-wrapper').remove();
-
-                        // Видаляємо файл з диску
-                        const filePath = path.join(IMAGES_DIR, filename);
-                        if (fs.existsSync(filePath)) {
-                            fs.unlinkSync(filePath);
-                            console.log(`🗑️  Видалено: ${filename}`);
-                            deletedCount++;
-                        }
-                    }
-                }
-            });
-        }
-
-        if (deletedCount > 0) {
-            console.log(`\n🗑️  Видалено ${deletedCount} фото, яких немає в Instagram`);
-        }
+        console.log(`✅ Перебудовано галерею: додано ${addedCount} фото`);
 
         // Додаємо коментар з датою оновлення
         const updateComment = `\n    <!-- Останнє оновлення: ${new Date().toLocaleString('uk-UA')} -->`;
@@ -130,7 +83,7 @@ function updateHTML(galleryData) {
         // Зберігаємо оновлений HTML
         fs.writeFileSync(HTML_FILE, $.html(), 'utf-8');
 
-        console.log(`\n✨ Галерею оновлено! Додано ${addedCount} нових фото`);
+        console.log(`\n✨ Галерею оновлено!`);
         console.log(`📄 Файл ${HTML_FILE} збережено`);
 
         return true;
@@ -145,47 +98,53 @@ function updateHTML(galleryData) {
  * Перевіряє наявність фото в папці images
  */
 function verifyImages(galleryData) {
-    let missingCount = 0;
+  let missingCount = 0;
 
-    galleryData.posts.forEach(post => {
-        const imagePath = path.join(IMAGES_DIR, post.filename);
-        if (!fs.existsSync(imagePath)) {
-            console.warn(`⚠️  Файл не знайдено: ${post.filename}`);
-            missingCount++;
-        }
-    });
-
-    if (missingCount > 0) {
-        console.warn(`\n⚠️  Відсутні ${missingCount} файлів. Запустіть 'npm run sync' для завантаження.`);
+  galleryData.posts.forEach((post) => {
+    const imagePath = path.join(IMAGES_DIR, post.filename);
+    if (!fs.existsSync(imagePath)) {
+      console.warn(`⚠️  Файл не знайдено: ${post.filename}`);
+      missingCount++;
     }
+  });
 
-    return missingCount === 0;
+  if (missingCount > 0) {
+    console.warn(
+      `\n⚠️  Відсутні ${missingCount} файлів. Запустіть 'npm run sync' для завантаження.`
+    );
+  }
+
+  return missingCount === 0;
 }
 
 // Головна функція
 function main() {
-    console.log('🔄 Оновлення галереї...\n');
+  console.log("🔄 Оновлення галереї...\n");
 
-    // Перевіряємо наявність метаданих (опціонально)
-    let galleryData = null;
-    if (fs.existsSync(METADATA_FILE)) {
-        galleryData = readGalleryData();
-        if (galleryData) {
-            console.log(`📊 Знайдено ${galleryData.posts.length} постів від @${galleryData.username}\n`);
-        }
-    } else {
-        console.log('ℹ️  Файл gallery-data.json не знайдено, додаємо всі Instagram фото з папки images\n');
+  // Перевіряємо наявність метаданих (опціонально)
+  let galleryData = null;
+  if (fs.existsSync(METADATA_FILE)) {
+    galleryData = readGalleryData();
+    if (galleryData) {
+      console.log(
+        `📊 Знайдено ${galleryData.posts.length} постів від @${galleryData.username}\n`
+      );
     }
+  } else {
+    console.log(
+      "ℹ️  Файл gallery-data.json не знайдено, додаємо всі Instagram фото з папки images\n"
+    );
+  }
 
-    // Оновлюємо HTML
-    const success = updateHTML(galleryData);
+  // Оновлюємо HTML
+  const success = updateHTML(galleryData);
 
-    process.exit(success ? 0 : 1);
+  process.exit(success ? 0 : 1);
 }
 
 // Запуск
 if (require.main === module) {
-    main();
+  main();
 }
 
 module.exports = { updateHTML, readGalleryData };
