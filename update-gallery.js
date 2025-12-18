@@ -59,9 +59,14 @@ function updateHTML(galleryData) {
         // Сортуємо за датою (найновіші спочатку)
         instagramPhotos.sort().reverse();
 
-        // Додаємо всі фото
+        // Розділяємо на початкове завантаження і відкладене
+        const INITIAL_BATCH_SIZE = 15;
+        const initialPhotos = instagramPhotos.slice(0, INITIAL_BATCH_SIZE);
+        const deferredPhotos = instagramPhotos.slice(INITIAL_BATCH_SIZE);
+
+        // Додаємо початкові фото в HTML
         let addedCount = 0;
-        instagramPhotos.forEach(filename => {
+        initialPhotos.forEach(filename => {
             const imagePath = `./images/${filename}`;
             const caption = filename.replace(/\.(jpg|jpeg|png)$/i, '').replace(/[_-]/g, ' ');
 
@@ -74,7 +79,23 @@ function updateHTML(galleryData) {
             addedCount++;
         });
 
-        console.log(`✅ Перебудовано галерею: додано ${addedCount} фото`);
+        console.log(`✅ HTML оновлено: додано перші ${addedCount} фото`);
+
+        // Зберігаємо решту фото в JS файл для лінивого завантаження
+        if (deferredPhotos.length > 0) {
+            const galleryItems = deferredPhotos.map(filename => ({
+                src: `./images/${filename}`,
+                thumb: `./images/${filename}`,
+                caption: filename.replace(/\.(jpg|jpeg|png)$/i, '').replace(/[_-]/g, ' ')
+            }));
+
+            const jsContent = `window.GALLERY_ITEMS = ${JSON.stringify(galleryItems, null, 2)};`;
+            fs.writeFileSync('gallery-items.js', jsContent, 'utf-8');
+            console.log(`📦 Створено gallery-items.js з ${deferredPhotos.length} додатковими фото`);
+        } else {
+             // Якщо фото мало, створюємо пустий масив
+             fs.writeFileSync('gallery-items.js', 'window.GALLERY_ITEMS = [];', 'utf-8');
+        }
 
         // Додаємо коментар з датою оновлення
         const updateComment = `\n    <!-- Останнє оновлення: ${new Date().toLocaleString('uk-UA')} -->`;
