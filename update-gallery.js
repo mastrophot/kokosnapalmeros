@@ -46,23 +46,32 @@ function updateHTML(galleryData) {
         gallery.empty();
 
         // Отримуємо всі Instagram фото з папки images
-        const instagramPhotos = [];
+        const instagramPhotos = new Set();
         const files = fs.readdirSync(IMAGES_DIR);
 
+        // Додаємо фото з метаданих, якщо вони існують на диску
+        if (galleryData && galleryData.posts) {
+            galleryData.posts.forEach(post => {
+                if (fs.existsSync(path.join(IMAGES_DIR, post.filename))) {
+                    instagramPhotos.add(post.filename);
+                }
+            });
+        }
+
+        // Додаємо інші фото з папки, яких немає в метаданих
         files.forEach(file => {
-            // Шукаємо файли з датою в форматі YYYY-MM-DD або YYYY (Instagram фото)
             if (file.match(/^\d{4}[-_]\d{2}[-_]\d{2}.*\.jpg$/i)) {
-                instagramPhotos.push(file);
+                instagramPhotos.add(file);
             }
         });
 
-        // Сортуємо за датою (найновіші спочатку)
-        instagramPhotos.sort().reverse();
+        // Конвертуємо Set назад у масив та сортуємо
+        const sortedPhotos = Array.from(instagramPhotos).sort().reverse();
 
         // Розділяємо на початкове завантаження і відкладене
         const INITIAL_BATCH_SIZE = 15;
-        const initialPhotos = instagramPhotos.slice(0, INITIAL_BATCH_SIZE);
-        const deferredPhotos = instagramPhotos.slice(INITIAL_BATCH_SIZE);
+        const initialPhotos = sortedPhotos.slice(0, INITIAL_BATCH_SIZE);
+        const deferredPhotos = sortedPhotos.slice(INITIAL_BATCH_SIZE);
 
         // Додаємо початкові фото в HTML
         let addedCount = 0;
@@ -72,7 +81,7 @@ function updateHTML(galleryData) {
 
             const galleryItem = `
                 <a href="${imagePath}" data-fancybox="gallery" class="gallery-item-wrapper">
-                    <img src="${imagePath}" alt="${caption}" class="gallery-item">
+                    <img src="${imagePath}" alt="${caption}" class="gallery-item" loading="lazy">
                 </a>`;
 
             gallery.append(galleryItem);
@@ -99,7 +108,7 @@ function updateHTML(galleryData) {
 
         // Додаємо коментар з датою оновлення
         const updateComment = `\n    <!-- Останнє оновлення: ${new Date().toLocaleString('uk-UA')} -->`;
-        gallery.after(updateComment);
+        gallery.append(updateComment);
 
         // Зберігаємо оновлений HTML
         fs.writeFileSync(HTML_FILE, $.html(), 'utf-8');
