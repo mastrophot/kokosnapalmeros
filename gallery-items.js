@@ -1,5 +1,20 @@
 window.GALLERY_ITEMS = [
   {
+    "src": "./images/2025-11-08_17-22-19_UTC_3.jpg",
+    "thumb": "./images/2025-11-08_17-22-19_UTC_3.jpg",
+    "caption": "2025 11 08 17 22 19 UTC 3"
+  },
+  {
+    "src": "./images/2025-11-08_17-22-19_UTC_2.jpg",
+    "thumb": "./images/2025-11-08_17-22-19_UTC_2.jpg",
+    "caption": "2025 11 08 17 22 19 UTC 2"
+  },
+  {
+    "src": "./images/2025-11-08_17-22-19_UTC_1.jpg",
+    "thumb": "./images/2025-11-08_17-22-19_UTC_1.jpg",
+    "caption": "2025 11 08 17 22 19 UTC 1"
+  },
+  {
     "src": "./images/2025-11-06_16-19-05_UTC_5.jpg",
     "thumb": "./images/2025-11-06_16-19-05_UTC_5.jpg",
     "caption": "2025 11 06 16 19 05 UTC 5"

@@ -40,6 +40,7 @@ def download_instagram_photos(username, limit=MAX_POSTS, test_mode=False):
         save_metadata=False,
         compress_json=False,
         post_metadata_txt_pattern='',
+        filename_pattern='{date_utc}_UTC_{shortcode}',
         dirname_pattern=str(IMAGES_DIR)
     )
     
@@ -59,9 +60,9 @@ def download_instagram_photos(username, limit=MAX_POSTS, test_mode=False):
             if post.is_video:
                 continue
             
-            # Генеруємо ім'я файлу для першого фото
-            timestamp = post.date_utc.strftime("%Y%m%d_%H%M%S")
-            filename = f"instagram_{timestamp}_{post.shortcode}.jpg"
+            # Генеруємо ім'я файлу для першого фото (формат YYYY-MM-DD_HH-MM-SS_UTC_shortcode.jpg)
+            timestamp = post.date_utc.strftime("%Y-%m-%d_%H-%M-%S")
+            filename = f"{timestamp}_UTC_{post.shortcode}.jpg"
             filepath = IMAGES_DIR / filename
             
             # Пропускаємо, якщо вже завантажено
@@ -87,15 +88,17 @@ def download_instagram_photos(username, limit=MAX_POSTS, test_mode=False):
                     # Завантажуємо пост
                     loader.download_post(post, target=str(IMAGES_DIR / post.shortcode))
                     
-                    # Знаходимо перше завантажене фото
+                    # Знаходимо перше завантажене фото (воно вже має містити shortcode завдяки filename_pattern)
                     downloaded_files = sorted(IMAGES_DIR.glob(f"*{post.shortcode}*.jpg"))
                     
                     if downloaded_files:
                         # Беремо тільки перше фото
                         first_photo = downloaded_files[0]
                         
-                        # Перейменовуємо на наш формат
-                        first_photo.rename(filepath)
+                        # Перейменовуємо на наш формат (хоча воно вже має бути майже таким)
+                        # Але переконаємось, що розширення .jpg
+                        if first_photo != filepath:
+                            first_photo.rename(filepath)
                         
                         # Видаляємо інші фото з карусельного поста
                         for extra_file in downloaded_files[1:]:
