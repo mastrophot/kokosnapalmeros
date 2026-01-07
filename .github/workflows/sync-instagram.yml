@@ -2,7 +2,7 @@ name: Sync Instagram Photos
 
 on:
   schedule:
-    - cron: '0 */2 * * *'  # Кожні 2 години
+    - cron: '0 12 * * *'  # Раз на день о 12:00 UTC (14:00 за Києвом)
   workflow_dispatch:  # Дозволяє запускати вручну:
 
 jobs:
