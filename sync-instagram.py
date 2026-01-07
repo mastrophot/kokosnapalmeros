@@ -44,33 +44,35 @@ def download_instagram_photos(username, limit=MAX_POSTS, test_mode=False):
         dirname_pattern=str(IMAGES_DIR)
     )
     
-    # Авторизація через сесію
+    # Авторизація
     session_user = os.getenv("INSTAGRAM_SESSION_USER")
     session_data_base64 = os.getenv("INSTAGRAM_SESSION_DATA")
+    instagram_password = os.getenv("INSTAGRAM_PASSWORD")
     
     if session_user:
         try:
-            session_file = Path(f"session-{session_user}")
-            
-            # Якщо є дані сесії в base64, створюємо файл
             if session_data_base64:
+                # Пріоритет - сесія з ENV (Base64)
                 import base64
+                session_file = Path(f"session-{session_user}")
                 session_data = base64.b64decode(session_data_base64)
                 with open(session_file, 'wb') as f:
                     f.write(session_data)
-                print(f"🔑 Використання сесії з ENV для {session_user}")
-            
-            # Завантажуємо сесію
-            loader.load_session_from_file(session_user, filename=str(session_file))
-            print(f"✅ Авторизовано як {session_user}")
-            
-            # Видаляємо тимчасовий файл сесії після завантаження в пам'ять (для безпеки)
-            if session_file.exists():
-                session_file.unlink()
-                
+                loader.load_session_from_file(session_user, filename=str(session_file))
+                if session_file.exists(): session_file.unlink()
+                print(f"✅ Авторизовано через сесію (ENV) як {session_user}")
+            elif instagram_password:
+                # Фолбек на логін/пароль
+                print(f"🔑 Спроба входу через пароль для {session_user}...")
+                loader.login(session_user, instagram_password)
+                print(f"✅ Авторизовано як {session_user}")
+            else:
+                # Спроба завантажити локальну сесію (якщо є)
+                loader.load_session_from_file(session_user)
+                print(f"✅ Авторизовано через локальну сесію як {session_user}")
         except Exception as e:
-            print(f"⚠️ Помилка завантаження сесії: {e}")
-            print("⏳ Продовжуємо без авторизації...")
+            print(f"⚠️ Помилка авторизації: {e}")
+            print("⏳ Продовжуємо без авторизації (публічний режим)...")
         # Завантажуємо профіль
         profile = instaloader.Profile.from_username(loader.context, username)
         

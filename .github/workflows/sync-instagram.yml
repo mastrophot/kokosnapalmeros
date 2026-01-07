@@ -38,6 +38,7 @@ jobs:
         env:
           INSTAGRAM_SESSION_USER: ${{ secrets.IG_USERNAME }}
           INSTAGRAM_SESSION_DATA: ${{ secrets.IG_SESSION_DATA }}
+          INSTAGRAM_PASSWORD: ${{ secrets.IG_PASSWORD }}
         run: |
           python3 sync-instagram.py --limit 20
           
