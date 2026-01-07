@@ -5,6 +5,9 @@ on:
     - cron: '0 12 * * *'  # Раз на день о 12:00 UTC (14:00 за Києвом)
   workflow_dispatch:  # Дозволяє запускати вручну:
 
+permissions:
+  contents: write
+
 jobs:
   sync:
     runs-on: ubuntu-latest
