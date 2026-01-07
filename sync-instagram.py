@@ -44,7 +44,33 @@ def download_instagram_photos(username, limit=MAX_POSTS, test_mode=False):
         dirname_pattern=str(IMAGES_DIR)
     )
     
-    try:
+    # Авторизація через сесію
+    session_user = os.getenv("INSTAGRAM_SESSION_USER")
+    session_data_base64 = os.getenv("INSTAGRAM_SESSION_DATA")
+    
+    if session_user:
+        try:
+            session_file = Path(f"session-{session_user}")
+            
+            # Якщо є дані сесії в base64, створюємо файл
+            if session_data_base64:
+                import base64
+                session_data = base64.b64decode(session_data_base64)
+                with open(session_file, 'wb') as f:
+                    f.write(session_data)
+                print(f"🔑 Використання сесії з ENV для {session_user}")
+            
+            # Завантажуємо сесію
+            loader.load_session_from_file(session_user, filename=str(session_file))
+            print(f"✅ Авторизовано як {session_user}")
+            
+            # Видаляємо тимчасовий файл сесії після завантаження в пам'ять (для безпеки)
+            if session_file.exists():
+                session_file.unlink()
+                
+        except Exception as e:
+            print(f"⚠️ Помилка завантаження сесії: {e}")
+            print("⏳ Продовжуємо без авторизації...")
         # Завантажуємо профіль
         profile = instaloader.Profile.from_username(loader.context, username)
         

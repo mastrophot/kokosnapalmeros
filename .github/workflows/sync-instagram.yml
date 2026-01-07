@@ -35,6 +35,9 @@ jobs:
           npm install
           
       - name: Download Instagram photos
+        env:
+          INSTAGRAM_SESSION_USER: ${{ secrets.IG_USERNAME }}
+          INSTAGRAM_SESSION_DATA: ${{ secrets.IG_SESSION_DATA }}
         run: |
           python3 sync-instagram.py --limit 20
           
