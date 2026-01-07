@@ -73,7 +73,8 @@ def download_instagram_photos(username, limit=MAX_POSTS, test_mode=False):
         except Exception as e:
             print(f"⚠️ Помилка авторизації: {e}")
             print("⏳ Продовжуємо без авторизації (публічний режим)...")
-        # Завантажуємо профіль
+    # Завантажуємо профіль
+    try:
         profile = instaloader.Profile.from_username(loader.context, username)
         
         posts_data = []
@@ -97,7 +98,6 @@ def download_instagram_photos(username, limit=MAX_POSTS, test_mode=False):
             if filepath.exists():
                 print(f"⏭️  Вже існує: {filename}")
                 downloaded_count += 1
-                
                 # Додаємо до метаданих навіть якщо вже існує
                 post_data = {
                     "filename": filename,
