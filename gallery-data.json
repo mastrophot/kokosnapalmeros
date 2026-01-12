@@ -1,7 +1,15 @@
 {
-  "last_updated": "2026-01-11T12:23:47.354081",
+  "last_updated": "2026-01-12T12:28:41.587742",
   "username": "kokosnapalmeros",
   "posts": [
+    {
+      "filename": "2026-01-11_13-17-21_UTC_DTXyxQpCHor.jpg",
+      "caption": "автодом и зимний лес.",
+      "date": "2026-01-11T13:17:21",
+      "likes": 18,
+      "shortcode": "DTXyxQpCHor",
+      "url": "https://www.instagram.com/p/DTXyxQpCHor/"
+    },
     {
       "filename": "2026-01-01_00-00-55_UTC_DS8nrOsiNeq.jpg",
       "caption": "Happy New year 🐲2026",
@@ -22,7 +30,7 @@
       "filename": "2025-12-16_14-51-41_UTC_DSVA5ayiNG-.jpg",
       "caption": "море в средине декабря такое же прекрасное, но невероятно холодное 🌊",
       "date": "2025-12-16T14:51:41",
-      "likes": 14,
+      "likes": 15,
       "shortcode": "DSVA5ayiNG-",
       "url": "https://www.instagram.com/p/DSVA5ayiNG-/"
     },
@@ -153,14 +161,6 @@
       "likes": 15,
       "shortcode": "DN1NKCYUIW-",
       "url": "https://www.instagram.com/p/DN1NKCYUIW-/"
-    },
-    {
-      "filename": "2025-08-23_22-00-57_UTC_DNtqm4s0Klo.jpg",
-      "caption": "всегда был равнодушен к авто, но некоторые экземпляры цепляют.",
-      "date": "2025-08-23T22:00:57",
-      "likes": 11,
-      "shortcode": "DNtqm4s0Klo",
-      "url": "https://www.instagram.com/p/DNtqm4s0Klo/"
     }
   ]
 }
