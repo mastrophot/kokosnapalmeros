@@ -1,7 +1,15 @@
 {
-  "last_updated": "2026-01-28T12:29:58.987357",
+  "last_updated": "2026-01-30T12:33:31.388825",
   "username": "kokosnapalmeros",
   "posts": [
+    {
+      "filename": "2026-01-30_00-52-57_UTC_DUHYrzoCBPT.jpg",
+      "caption": "Зима должна быть только со снегом. \nБез снега - это затяжная осень.",
+      "date": "2026-01-30T00:52:57",
+      "likes": 9,
+      "shortcode": "DUHYrzoCBPT",
+      "url": "https://www.instagram.com/p/DUHYrzoCBPT/"
+    },
     {
       "filename": "2026-01-11_13-17-21_UTC_DTXyxQpCHor.jpg",
       "caption": "автодом и зимний лес.",
@@ -153,14 +161,6 @@
       "likes": 14,
       "shortcode": "DN5-qdCCFKo",
       "url": "https://www.instagram.com/p/DN5-qdCCFKo/"
-    },
-    {
-      "filename": "2025-08-26_20-17-32_UTC_DN1NKCYUIW-.jpg",
-      "caption": "🏎️",
-      "date": "2025-08-26T20:17:32",
-      "likes": 14,
-      "shortcode": "DN1NKCYUIW-",
-      "url": "https://www.instagram.com/p/DN1NKCYUIW-/"
     }
   ]
 }
