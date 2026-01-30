@@ -70,8 +70,32 @@ function updateHTML(galleryData) {
             }
         });
 
-        // Конвертуємо Set назад у масив та сортуємо
-        const sortedPhotos = Array.from(instagramPhotos).sort().reverse();
+        // Конвертуємо Set назад у масив
+        const photosArray = Array.from(instagramPhotos);
+
+        // Кастомне сортування:
+        // 1. Пости сортуємо за часом (filename без суфікса) - DESC (спадання)
+        // 2. Фото всередині посту (за суфіксом _1, _2) - ASC (зростання)
+        const sortedPhotos = photosArray.sort((a, b) => {
+            // Витягуємо базову частину імені (без суфікса _N.jpg)
+            // Приклад: 2026-01-30_00-52-57_UTC_CODE -> 2026-01-30_00-52-57_UTC_CODE
+            // Приклад: ..._CODE_1.jpg -> ..._CODE
+            
+            const getBaseName = (name) => name.replace(/_\d+\.jpg$/i, '.jpg');
+            const baseA = getBaseName(a);
+            const baseB = getBaseName(b);
+
+            if (baseA > baseB) return -1; // A новіше -> A раніше (спадання)
+            if (baseA < baseB) return 1;  // B новіше -> B раніше
+
+            // Якщо бази однакові (один пост), сортуємо за номером
+            const getNum = (name) => {
+                const match = name.match(/_(\d+)\.jpg$/i);
+                return match ? parseInt(match[1]) : 0;
+            };
+
+            return getNum(a) - getNum(b); // 1, 2, 3... (зростання)
+        });
 
         // Розділяємо на початкове завантаження і відкладене
         const INITIAL_BATCH_SIZE = 15;
