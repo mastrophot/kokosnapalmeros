@@ -132,8 +132,14 @@ def download_instagram_photos(username, limit=MAX_POSTS, test_mode=False):
                     # Завантажуємо пост
                     loader.download_post(post, target=str(IMAGES_DIR / post.shortcode))
                     
-                    # Знаходимо всі завантажені фото
-                    downloaded_files = sorted(IMAGES_DIR.glob(f"*{post.shortcode}*.jpg"))
+                    # Знаходимо всі завантажені фото і сортуємо числово
+                    downloaded_files = list(IMAGES_DIR.glob(f"*{post.shortcode}*.jpg"))
+                    # Сортуємо за числовим суфіксом (наприклад _1, _2, _10)
+                    import re
+                    def get_photo_number(path):
+                        match = re.search(r'_(\d+)\.jpg$', str(path))
+                        return int(match.group(1)) if match else 0
+                    downloaded_files.sort(key=get_photo_number)
                     
                     if downloaded_files:
                         # Перейменовуємо всі фото з каруселі

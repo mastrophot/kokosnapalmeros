@@ -310,6 +310,46 @@ window.GALLERY_ITEMS = [
     "caption": "2025 11 05 15 47 51 UTC 1"
   },
   {
+    "src": "./images/2025-11-04_17-23-21_UTC_DQpI3gciPqG_9.jpg",
+    "thumb": "./images/2025-11-04_17-23-21_UTC_DQpI3gciPqG_9.jpg",
+    "caption": "2025 11 04 17 23 21 UTC DQpI3gciPqG 9"
+  },
+  {
+    "src": "./images/2025-11-04_17-23-21_UTC_DQpI3gciPqG_8.jpg",
+    "thumb": "./images/2025-11-04_17-23-21_UTC_DQpI3gciPqG_8.jpg",
+    "caption": "2025 11 04 17 23 21 UTC DQpI3gciPqG 8"
+  },
+  {
+    "src": "./images/2025-11-04_17-23-21_UTC_DQpI3gciPqG_7.jpg",
+    "thumb": "./images/2025-11-04_17-23-21_UTC_DQpI3gciPqG_7.jpg",
+    "caption": "2025 11 04 17 23 21 UTC DQpI3gciPqG 7"
+  },
+  {
+    "src": "./images/2025-11-04_17-23-21_UTC_DQpI3gciPqG_6.jpg",
+    "thumb": "./images/2025-11-04_17-23-21_UTC_DQpI3gciPqG_6.jpg",
+    "caption": "2025 11 04 17 23 21 UTC DQpI3gciPqG 6"
+  },
+  {
+    "src": "./images/2025-11-04_17-23-21_UTC_DQpI3gciPqG_5.jpg",
+    "thumb": "./images/2025-11-04_17-23-21_UTC_DQpI3gciPqG_5.jpg",
+    "caption": "2025 11 04 17 23 21 UTC DQpI3gciPqG 5"
+  },
+  {
+    "src": "./images/2025-11-04_17-23-21_UTC_DQpI3gciPqG_4.jpg",
+    "thumb": "./images/2025-11-04_17-23-21_UTC_DQpI3gciPqG_4.jpg",
+    "caption": "2025 11 04 17 23 21 UTC DQpI3gciPqG 4"
+  },
+  {
+    "src": "./images/2025-11-04_17-23-21_UTC_DQpI3gciPqG_3.jpg",
+    "thumb": "./images/2025-11-04_17-23-21_UTC_DQpI3gciPqG_3.jpg",
+    "caption": "2025 11 04 17 23 21 UTC DQpI3gciPqG 3"
+  },
+  {
+    "src": "./images/2025-11-04_17-23-21_UTC_DQpI3gciPqG_2.jpg",
+    "thumb": "./images/2025-11-04_17-23-21_UTC_DQpI3gciPqG_2.jpg",
+    "caption": "2025 11 04 17 23 21 UTC DQpI3gciPqG 2"
+  },
+  {
     "src": "./images/2025-11-04_17-23-21_UTC_DQpI3gciPqG_10.jpg",
     "thumb": "./images/2025-11-04_17-23-21_UTC_DQpI3gciPqG_10.jpg",
     "caption": "2025 11 04 17 23 21 UTC DQpI3gciPqG 10"
