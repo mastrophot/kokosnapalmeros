@@ -52,9 +52,14 @@ function updateHTML(galleryData) {
         // Додаємо фото з метаданих, якщо вони існують на диску
         if (galleryData && galleryData.posts) {
             galleryData.posts.forEach(post => {
-                if (fs.existsSync(path.join(IMAGES_DIR, post.filename))) {
-                    instagramPhotos.add(post.filename);
-                }
+                // Використовуємо масив images якщо є, інакше filename
+                const images = post.images || [post.filename];
+                
+                images.forEach(filename => {
+                    if (fs.existsSync(path.join(IMAGES_DIR, filename))) {
+                        instagramPhotos.add(filename);
+                    }
+                });
             });
         }
 

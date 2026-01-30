@@ -94,45 +94,63 @@ def download_instagram_photos(username, limit=MAX_POSTS, test_mode=False):
             filename = f"{timestamp}_UTC_{post.shortcode}.jpg"
             filepath = IMAGES_DIR / filename
             
-            # Пропускаємо, якщо вже завантажено
-            if filepath.exists():
-                print(f"⏭️  Вже існує: {filename}")
+            # Перевіряємо чи вже існують фото з цим shortcode
+            existing_files = sorted(IMAGES_DIR.glob(f"*{post.shortcode}*.jpg"))
+            
+            if existing_files:
+                print(f"⏭️  Вже існує: {post.shortcode} ({len(existing_files)} фото)")
                 downloaded_count += 1
-                # Додаємо до метаданих навіть якщо вже існує
+                
+                # Отримуємо імена файлів
+                existing_filenames = [f.name for f in existing_files]
+                
+                # Додаємо до метаданих
                 post_data = {
-                    "filename": filename,
+                    "filename": existing_filenames[0],
                     "caption": post.caption if post.caption else "",
                     "date": post.date_utc.isoformat(),
                     "likes": post.likes,
                     "shortcode": post.shortcode,
                     "url": f"https://www.instagram.com/p/{post.shortcode}/"
                 }
+                
+                # Додаємо масив images
+                if len(existing_filenames) > 1:
+                    post_data["images"] = existing_filenames
+                    post_data["is_carousel"] = True
+                else:
+                    post_data["images"] = existing_filenames
+                    
                 posts_data.append(post_data)
                 continue
             
             # Завантажуємо пост (тільки якщо не тестовий режим)
+            all_images = []  # Список всіх фото для цього посту
+            
             if not test_mode:
                 try:
                     # Завантажуємо пост
                     loader.download_post(post, target=str(IMAGES_DIR / post.shortcode))
                     
-                    # Знаходимо перше завантажене фото (воно вже має містити shortcode завдяки filename_pattern)
+                    # Знаходимо всі завантажені фото
                     downloaded_files = sorted(IMAGES_DIR.glob(f"*{post.shortcode}*.jpg"))
                     
                     if downloaded_files:
-                        # Беремо тільки перше фото
-                        first_photo = downloaded_files[0]
-                        
-                        # Перейменовуємо на наш формат (хоча воно вже має бути майже таким)
-                        # Але переконаємось, що розширення .jpg
-                        if first_photo != filepath:
-                            first_photo.rename(filepath)
-                        
-                        # Видаляємо інші фото з карусельного поста
-                        for extra_file in downloaded_files[1:]:
-                            if extra_file.exists():
-                                extra_file.unlink()
-                                print(f"🗑️  Видалено додаткове фото: {extra_file.name}")
+                        # Перейменовуємо всі фото з каруселі
+                        for idx, photo in enumerate(downloaded_files, 1):
+                            if len(downloaded_files) > 1:
+                                # Для каруселі додаємо номер
+                                new_filename = f"{timestamp}_UTC_{post.shortcode}_{idx}.jpg"
+                            else:
+                                # Для одного фото залишаємо без номера
+                                new_filename = filename
+                            
+                            new_filepath = IMAGES_DIR / new_filename
+                            
+                            if photo != new_filepath:
+                                photo.rename(new_filepath)
+                            
+                            all_images.append(new_filename)
                         
                         # Видаляємо txt файли з метаданими, якщо є
                         for txt_file in IMAGES_DIR.glob(f"*{post.shortcode}*.txt"):
@@ -142,7 +160,10 @@ def download_instagram_photos(username, limit=MAX_POSTS, test_mode=False):
                         for json_file in IMAGES_DIR.glob(f"*{post.shortcode}*.json*"):
                             json_file.unlink()
                         
-                        print(f"✅ Завантажено: {filename}")
+                        if len(all_images) > 1:
+                            print(f"✅ Завантажено карусель ({len(all_images)} фото): {post.shortcode}")
+                        else:
+                            print(f"✅ Завантажено: {filename}")
                     else:
                         print(f"⚠️  Не знайдено фото для {post.shortcode}")
                         continue
@@ -153,13 +174,21 @@ def download_instagram_photos(username, limit=MAX_POSTS, test_mode=False):
             
             # Зберігаємо метадані
             post_data = {
-                "filename": filename,
+                "filename": all_images[0] if all_images else filename,
                 "caption": post.caption if post.caption else "",
                 "date": post.date_utc.isoformat(),
                 "likes": post.likes,
                 "shortcode": post.shortcode,
                 "url": f"https://www.instagram.com/p/{post.shortcode}/"
             }
+            
+            # Додаємо масив images для каруселей
+            if len(all_images) > 1:
+                post_data["images"] = all_images
+                post_data["is_carousel"] = True
+            elif all_images:
+                post_data["images"] = all_images
+            
             posts_data.append(post_data)
             downloaded_count += 1
         
