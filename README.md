@@ -2,109 +2,105 @@
 
 Фотогалерея з автоматичною синхронізацією фото з Instagram профілю [@kokosnapalmeros](https://instagram.com/kokosnapalmeros).
 
-## 🚀 Швидкий старт
+Ця версія працює через **офіційний Instagram Graph API** (без неофіційного scraper), тому значно стабільніша для GitHub Actions.
 
-### Встановлення залежностей
+## Швидкий старт
+
+### 1) Встановлення
 
 ```bash
-# Python залежності
+# Python залежностей немає (std lib), але команда безпечна:
 pip install -r requirements.txt
 
-# Node.js залежності
+# Node.js залежності для генерації HTML
 npm install
 ```
 
-### Використання
-
-#### Завантаження фото з Instagram
+### 2) Налаштування змінних оточення (локально)
 
 ```bash
-# Завантажити останні 20 фото
-npm run sync
-
-# Тестовий режим (тільки метадані, без завантаження)
-npm run sync:test
-
-# Завантажити певну кількість фото
-python3 sync-instagram.py --limit 10
+export IG_USER_ID="YOUR_IG_BUSINESS_ACCOUNT_ID"
+export IG_ACCESS_TOKEN="YOUR_PAGE_OR_USER_TOKEN"
+export INSTAGRAM_USERNAME="kokosnapalmeros"  # опційно
 ```
 
-#### Оновлення галереї
+### 3) Синхронізація
 
 ```bash
-# Оновити index.html з новими фото
+# Завантажити останні 20 постів (тільки фото, без відео/reels)
+npm run sync
+
+# Тестовий режим (тільки metadata, без запису файлів)
+npm run sync:test
+
+# Оновити HTML галерею
 npm run update-gallery
 
-# Або виконати все разом
+# Повний цикл
 npm run build
 ```
 
-## 🤖 Автоматична синхронізація
+## GitHub Actions (автоматично)
 
-Проект налаштовано на автоматичну синхронізацію через GitHub Actions:
+Workflow `.github/workflows/sync-instagram.yml` запускається щодня о 12:00 UTC і робить:
+1. Завантаження фото через Graph API
+2. Генерацію `index.html` + `gallery-items.js`
+3. Commit + push змін
 
-- **Розклад**: Щодня о 14:00 (київський час)
-- **Дії**: 
-  1. Завантаження нових фото з Instagram
-  2. Оновлення галереї
-  3. Автоматичний commit і push
+### Required GitHub Secrets
 
-Також можна запустити вручну через вкладку "Actions" на GitHub.
+Додай у репозиторій:
+- `IG_USER_ID` - ID Instagram Business Account
+- `IG_ACCESS_TOKEN` - Access token для Graph API
 
-## 📁 Структура проекту
+Опційно:
+- Repository variable `INSTAGRAM_USERNAME` (якщо не задано, використовується `kokosnapalmeros`)
 
+## Як отримати IG_USER_ID і IG_ACCESS_TOKEN (безкоштовно)
+
+Потрібно один раз налаштувати Meta:
+1. Instagram акаунт має бути `Professional` і прив'язаний до Facebook Page.
+2. Створи застосунок на Meta for Developers (тип `Business`).
+3. Отримай short-lived user token з правами `instagram_basic`, `pages_show_list`, `pages_read_engagement`.
+4. Обміняй на long-lived user token:
+
+```bash
+curl "https://graph.facebook.com/v22.0/oauth/access_token?grant_type=fb_exchange_token&client_id=$APP_ID&client_secret=$APP_SECRET&fb_exchange_token=$SHORT_LIVED_USER_TOKEN"
 ```
+
+5. Отримай сторінки і page access token:
+
+```bash
+curl "https://graph.facebook.com/v22.0/me/accounts?access_token=$LONG_LIVED_USER_TOKEN"
+```
+
+6. Отримай IG user id:
+
+```bash
+curl "https://graph.facebook.com/v22.0/$PAGE_ID?fields=instagram_business_account&access_token=$PAGE_ACCESS_TOKEN"
+```
+
+7. Значення `instagram_business_account.id` використовуй як `IG_USER_ID`, а page token як `IG_ACCESS_TOKEN`.
+
+## Структура проекту
+
+```text
 .
-├── images/              # Папка з фотографіями
-├── index.html           # Головна сторінка галереї
-├── styles.css           # Стилі
-├── script.js            # JavaScript для галереї
-├── sync-instagram.py    # Скрипт завантаження з Instagram
-├── update-gallery.js    # Скрипт оновлення HTML
-├── gallery-data.json    # Метадані фото (генерується автоматично)
-└── .github/workflows/   # GitHub Actions конфігурація
+├── images/              # Зображення
+├── index.html           # Сторінка галереї
+├── gallery-items.js     # Відкладене завантаження фото
+├── gallery-data.json    # Метадані постів
+├── sync-instagram.py    # Синхронізація через Graph API
+├── update-gallery.js    # Оновлення HTML
+└── .github/workflows/   # Автоматичний запуск
 ```
 
-## ⚙️ Конфігурація
+## Важливо
 
-### Зміна Instagram профілю
+- Скрипт завантажує тільки `IMAGE` і фото з `CAROUSEL_ALBUM`.
+- `VIDEO`/`REELS` пропускаються.
+- Не зберігай токени у файлах репозиторію, тільки в GitHub Secrets.
 
-Відредагуйте `sync-instagram.py`:
-
-```python
-INSTAGRAM_USERNAME = "your_username"
-```
-
-### Зміна кількості фото
-
-Відредагуйте `sync-instagram.py`:
-
-```python
-MAX_POSTS = 20  # Ваше значення
-```
-
-### Зміна розкладу синхронізації
-
-Відредагуйте `.github/workflows/sync-instagram.yml`:
-
-```yaml
-schedule:
-  - cron: '0 12 * * *'  # Формат: хвилина година день місяць день_тижня
-```
-
-## ⚠️ Важливо
-
-- **Instagram обмеження**: Використовується неофіційний scraper (Instaloader), який може бути заблокований Instagram при надмірному використанні
-- **Публічні профілі**: Працює тільки з публічними Instagram профілями
-- **Rate limiting**: Рекомендується не запускати синхронізацію частіше ніж раз на годину
-
-## 🛠️ Технології
-
-- **Frontend**: HTML, CSS, JavaScript, [Fancybox](https://fancyapps.com/fancybox/)
-- **Backend**: Python (Instaloader), Node.js (Cheerio)
-- **Автоматизація**: GitHub Actions
-- **Хостинг**: GitHub Pages (опціонально)
-
-## 📝 Ліцензія
+## Ліцензія
 
 MIT

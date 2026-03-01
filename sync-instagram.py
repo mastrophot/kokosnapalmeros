@@ -1,243 +1,365 @@
 #!/usr/bin/env python3
 """
 Instagram Photo Sync Script
-Завантажує останні фото з Instagram профілю та зберігає метадані
+Завантажує фото через офіційний Instagram Graph API та зберігає метадані.
 """
 
-import instaloader
+import argparse
 import json
 import os
+import random
+import re
 import sys
-from datetime import datetime
+import time
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Dict, List, Optional
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode, urlparse
+from urllib.request import Request, urlopen
 
 # Конфігурація
-INSTAGRAM_USERNAME = "kokosnapalmeros"
+INSTAGRAM_USERNAME = os.getenv("INSTAGRAM_USERNAME", "kokosnapalmeros")
 IMAGES_DIR = Path("images")
 METADATA_FILE = Path("gallery-data.json")
-MAX_POSTS = 20  # Максимальна кількість постів для завантаження
+MAX_POSTS = 20
+GRAPH_API_BASE = os.getenv("IG_GRAPH_API_BASE", "https://graph.facebook.com")
+GRAPH_API_VERSION = os.getenv("IG_GRAPH_API_VERSION", "v22.0")
+IG_USER_ID = os.getenv("IG_USER_ID") or os.getenv("INSTAGRAM_BUSINESS_ACCOUNT_ID")
+IG_ACCESS_TOKEN = os.getenv("IG_ACCESS_TOKEN") or os.getenv("INSTAGRAM_GRAPH_ACCESS_TOKEN")
+REQUEST_TIMEOUT = int(os.getenv("IG_REQUEST_TIMEOUT_SEC", "30"))
+MAX_RETRIES = int(os.getenv("IG_MAX_RETRIES", "4"))
 
-def download_instagram_photos(username, limit=MAX_POSTS, test_mode=False):
-    """
-    Завантажує фото з Instagram профілю
-    
-    Args:
-        username: Instagram username
-        limit: Максимальна кількість постів
-        test_mode: Якщо True, завантажує тільки метадані без фото
-    """
-    print(f"🔄 Завантаження фото з @{username}...")
-    
-    # Створюємо папку для зображень, якщо не існує
-    IMAGES_DIR.mkdir(exist_ok=True)
-    
-    # Ініціалізація Instaloader
-    loader = instaloader.Instaloader(
-        download_videos=False,
-        download_video_thumbnails=False,
-        download_geotags=False,
-        download_comments=False,
-        save_metadata=False,
-        compress_json=False,
-        post_metadata_txt_pattern='',
-        filename_pattern='{date_utc}_UTC_{shortcode}',
-        dirname_pattern=str(IMAGES_DIR)
-    )
-    
-    # Авторизація
-    session_user = os.getenv("INSTAGRAM_SESSION_USER")
-    session_data_base64 = os.getenv("INSTAGRAM_SESSION_DATA")
-    instagram_password = os.getenv("INSTAGRAM_PASSWORD")
-    
-    if session_user:
+
+class GraphAPIError(RuntimeError):
+    """Помилка роботи з Graph API."""
+
+
+@dataclass
+class InstagramPost:
+    shortcode: str
+    caption: str
+    timestamp: str
+    permalink: str
+    likes: int
+    media_urls: List[str]
+
+
+def build_graph_url(path: str, params: Optional[Dict[str, str]] = None) -> str:
+    """Формує URL для Graph API."""
+    base = f"{GRAPH_API_BASE.rstrip('/')}/{GRAPH_API_VERSION}/{path.lstrip('/')}"
+    query = dict(params or {})
+    query["access_token"] = IG_ACCESS_TOKEN or ""
+    return f"{base}?{urlencode(query)}"
+
+
+def request_json(url: str) -> Dict:
+    """Виконує GET запит з retry/backoff для 429/5xx."""
+    last_error: Optional[Exception] = None
+    for attempt in range(1, MAX_RETRIES + 1):
         try:
-            if session_data_base64:
-                # Пріоритет - сесія з ENV (Base64)
-                import base64
-                session_file = Path(f"session-{session_user}")
-                session_data = base64.b64decode(session_data_base64)
-                with open(session_file, 'wb') as f:
-                    f.write(session_data)
-                loader.load_session_from_file(session_user, filename=str(session_file))
-                if session_file.exists(): session_file.unlink()
-                print(f"✅ Авторизовано через сесію (ENV) як {session_user}")
-            elif instagram_password:
-                # Фолбек на логін/пароль
-                print(f"🔑 Спроба входу через пароль для {session_user}...")
-                loader.login(session_user, instagram_password)
-                print(f"✅ Авторизовано як {session_user}")
-            else:
-                # Спроба завантажити локальну сесію (якщо є)
-                loader.load_session_from_file(session_user)
-                print(f"✅ Авторизовано через локальну сесію як {session_user}")
-        except Exception as e:
-            print(f"⚠️ Помилка авторизації: {e}")
-            print("⏳ Продовжуємо без авторизації (публічний режим)...")
-    # Завантажуємо профіль
+            request = Request(url, headers={"User-Agent": "kokosnapalmeros-sync/2.0"})
+            with urlopen(request, timeout=REQUEST_TIMEOUT) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except HTTPError as error:
+            body = error.read().decode("utf-8", errors="replace")
+            retryable = error.code in {429, 500, 502, 503, 504}
+            if retryable and attempt < MAX_RETRIES:
+                delay = min(60, (2 ** attempt) + random.random())
+                print(f"⚠️  HTTP {error.code}, retry через {delay:.1f}с...")
+                time.sleep(delay)
+                continue
+            last_error = GraphAPIError(f"HTTP {error.code}: {body}")
+            break
+        except URLError as error:
+            if attempt < MAX_RETRIES:
+                delay = min(60, (2 ** attempt) + random.random())
+                print(f"⚠️  Мережева помилка, retry через {delay:.1f}с...")
+                time.sleep(delay)
+                continue
+            last_error = GraphAPIError(str(error))
+            break
+    raise last_error or GraphAPIError("Невідома помилка Graph API")
+
+
+def request_bytes(url: str) -> bytes:
+    """Завантажує файл по URL."""
+    last_error: Optional[Exception] = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            request = Request(url, headers={"User-Agent": "kokosnapalmeros-sync/2.0"})
+            with urlopen(request, timeout=REQUEST_TIMEOUT) as response:
+                return response.read()
+        except HTTPError as error:
+            retryable = error.code in {429, 500, 502, 503, 504}
+            if retryable and attempt < MAX_RETRIES:
+                delay = min(60, (2 ** attempt) + random.random())
+                print(f"⚠️  Помилка завантаження файлу HTTP {error.code}, retry через {delay:.1f}с...")
+                time.sleep(delay)
+                continue
+            last_error = error
+            break
+        except URLError as error:
+            if attempt < MAX_RETRIES:
+                delay = min(60, (2 ** attempt) + random.random())
+                print(f"⚠️  Мережева помилка завантаження файлу, retry через {delay:.1f}с...")
+                time.sleep(delay)
+                continue
+            last_error = error
+            break
+    raise last_error or RuntimeError("Невідома помилка завантаження файлу")
+
+
+def parse_shortcode(permalink: str, media_id: str) -> str:
+    """Витягує shortcode з permalink."""
     try:
-        profile = instaloader.Profile.from_username(loader.context, username)
-        
-        posts_data = []
-        downloaded_count = 0
-        
-        # Перебираємо пости
-        for post in profile.get_posts():
-            if downloaded_count >= limit:
+        parts = urlparse(permalink).path.strip("/").split("/")
+        if len(parts) >= 2 and parts[0] in {"p", "reel", "tv"}:
+            return parts[1]
+    except Exception:
+        pass
+    # Fallback: останні символи ID, щоб ім'я файлу завжди було унікальним
+    clean = re.sub(r"[^A-Za-z0-9]", "", media_id)
+    return clean[-10:] if clean else "unknown"
+
+
+def parse_timestamp(timestamp: str) -> datetime:
+    """Парсить timestamp Graph API в UTC datetime."""
+    formats = ("%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%SZ")
+    for fmt in formats:
+        try:
+            parsed = datetime.strptime(timestamp, fmt)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed.astimezone(timezone.utc)
+        except ValueError:
+            continue
+    raise ValueError(f"Unsupported timestamp format: {timestamp}")
+
+
+def get_photo_number(path: Path) -> int:
+    """Повертає номер фото з імені файлу (_1, _2, ...)."""
+    match = re.search(r"_(\d+)\.[^.]+$", path.name)
+    return int(match.group(1)) if match else 0
+
+
+def find_existing_files(shortcode: str) -> List[Path]:
+    """Шукає вже завантажені фото поста за shortcode."""
+    valid_ext = {".jpg", ".jpeg", ".png", ".webp"}
+    files = [
+        path
+        for path in IMAGES_DIR.iterdir()
+        if path.is_file() and shortcode in path.name and path.suffix.lower() in valid_ext
+    ]
+    files.sort(key=lambda path: (get_photo_number(path), path.name))
+    return files
+
+
+def fetch_carousel_images(media_id: str) -> List[str]:
+    """Отримує URL зображень для carousel."""
+    images: List[str] = []
+    after: Optional[str] = None
+
+    while True:
+        params = {
+            "fields": "id,media_type,media_url",
+            "limit": "50",
+        }
+        if after:
+            params["after"] = after
+
+        url = build_graph_url(f"{media_id}/children", params)
+        payload = request_json(url)
+
+        for child in payload.get("data", []):
+            if child.get("media_type") == "IMAGE" and child.get("media_url"):
+                images.append(child["media_url"])
+
+        after = payload.get("paging", {}).get("cursors", {}).get("after")
+        if not after:
+            break
+
+    return images
+
+
+def fetch_posts(limit: int) -> List[InstagramPost]:
+    """Отримує пости з Graph API."""
+    posts: List[InstagramPost] = []
+    after: Optional[str] = None
+
+    while len(posts) < limit:
+        params = {
+            "fields": "id,caption,media_type,media_url,permalink,timestamp,like_count",
+            "limit": "50",
+        }
+        if after:
+            params["after"] = after
+
+        payload = request_json(build_graph_url(f"{IG_USER_ID}/media", params))
+        data = payload.get("data", [])
+
+        if not data:
+            break
+
+        for item in data:
+            media_type = item.get("media_type")
+            media_id = item.get("id", "")
+            permalink = item.get("permalink", "")
+            timestamp = item.get("timestamp")
+
+            if not timestamp:
+                continue
+
+            if media_type == "VIDEO":
+                continue
+
+            if media_type == "IMAGE":
+                media_urls = [item.get("media_url")] if item.get("media_url") else []
+            elif media_type == "CAROUSEL_ALBUM":
+                media_urls = fetch_carousel_images(media_id)
+            else:
+                continue
+
+            if not media_urls:
+                continue
+
+            posts.append(
+                InstagramPost(
+                    shortcode=parse_shortcode(permalink, media_id),
+                    caption=item.get("caption") or "",
+                    timestamp=timestamp,
+                    permalink=permalink,
+                    likes=int(item.get("like_count") or 0),
+                    media_urls=media_urls,
+                )
+            )
+
+            if len(posts) >= limit:
                 break
-                
-            # Пропускаємо відео
-            if post.is_video:
-                continue
-            
-            # Генеруємо ім'я файлу для першого фото (формат YYYY-MM-DD_HH-MM-SS_UTC_shortcode.jpg)
-            timestamp = post.date_utc.strftime("%Y-%m-%d_%H-%M-%S")
-            filename = f"{timestamp}_UTC_{post.shortcode}.jpg"
-            filepath = IMAGES_DIR / filename
-            
-            # Перевіряємо чи вже існують фото з цим shortcode
-            existing_files = sorted(IMAGES_DIR.glob(f"*{post.shortcode}*.jpg"))
-            
+
+        after = payload.get("paging", {}).get("cursors", {}).get("after")
+        if not after:
+            break
+
+    return posts
+
+
+def save_metadata(username: str, posts_data: List[Dict]) -> None:
+    """Зберігає gallery-data.json."""
+    with open(METADATA_FILE, "w", encoding="utf-8") as file:
+        json.dump(
+            {
+                "last_updated": datetime.now(timezone.utc).isoformat(),
+                "username": username,
+                "posts": posts_data,
+            },
+            file,
+            ensure_ascii=False,
+            indent=2,
+        )
+
+
+def build_filename(post_dt: datetime, shortcode: str, index: int, total: int) -> str:
+    """Генерує ім'я файлу у форматі YYYY-MM-DD_HH-MM-SS_UTC_shortcode[_N].jpg."""
+    timestamp = post_dt.strftime("%Y-%m-%d_%H-%M-%S")
+    if total > 1:
+        return f"{timestamp}_UTC_{shortcode}_{index + 1}.jpg"
+    return f"{timestamp}_UTC_{shortcode}.jpg"
+
+
+def download_instagram_photos(username: str, limit: int = MAX_POSTS, test_mode: bool = False) -> bool:
+    """
+    Синхронізує фото через Graph API.
+
+    Args:
+        username: Відображуване ім'я профілю в metadata
+        limit: Максимальна кількість постів
+        test_mode: Якщо True, тільки формує metadata без завантаження файлів
+    """
+    print(f"🔄 Завантаження фото з @{username} через Graph API...")
+
+    if not IG_USER_ID or not IG_ACCESS_TOKEN:
+        print("❌ Відсутні змінні оточення IG_USER_ID та/або IG_ACCESS_TOKEN")
+        print("   Додай їх у GitHub Secrets або export локально перед запуском.")
+        return False
+
+    IMAGES_DIR.mkdir(exist_ok=True)
+
+    try:
+        posts = fetch_posts(limit=limit)
+        if not posts:
+            print("⚠️  Graph API не повернув жодного поста.")
+
+        posts_data: List[Dict] = []
+
+        for post in posts:
+            existing_files = find_existing_files(post.shortcode)
+            filenames: List[str] = []
+
             if existing_files:
-                print(f"⏭️  Вже існує: {post.shortcode} ({len(existing_files)} фото)")
-                downloaded_count += 1
-                
-                # Отримуємо імена файлів
-                existing_filenames = [f.name for f in existing_files]
-                
-                # Додаємо до метаданих
-                post_data = {
-                    "filename": existing_filenames[0],
-                    "caption": post.caption if post.caption else "",
-                    "date": post.date_utc.isoformat(),
-                    "likes": post.likes,
-                    "shortcode": post.shortcode,
-                    "url": f"https://www.instagram.com/p/{post.shortcode}/"
-                }
-                
-                # Додаємо масив images
-                if len(existing_filenames) > 1:
-                    post_data["images"] = existing_filenames
-                    post_data["is_carousel"] = True
-                else:
-                    post_data["images"] = existing_filenames
-                    
-                posts_data.append(post_data)
-                continue
-            
-            # Завантажуємо пост (тільки якщо не тестовий режим)
-            all_images = []  # Список всіх фото для цього посту
-            
-            if not test_mode:
-                try:
-                    # Завантажуємо пост
-                    loader.download_post(post, target=str(IMAGES_DIR / post.shortcode))
-                    
-                    # Знаходимо всі завантажені фото і сортуємо числово
-                    downloaded_files = list(IMAGES_DIR.glob(f"*{post.shortcode}*.jpg"))
-                    # Сортуємо за числовим суфіксом (наприклад _1, _2, _10)
-                    import re
-                    def get_photo_number(path):
-                        match = re.search(r'_(\d+)\.jpg$', str(path))
-                        return int(match.group(1)) if match else 0
-                    downloaded_files.sort(key=get_photo_number)
-                    
-                    if downloaded_files:
-                        # Перейменовуємо всі фото з каруселі
-                        for idx, photo in enumerate(downloaded_files, 1):
-                            if len(downloaded_files) > 1:
-                                # Для каруселі додаємо номер
-                                new_filename = f"{timestamp}_UTC_{post.shortcode}_{idx}.jpg"
-                            else:
-                                # Для одного фото залишаємо без номера
-                                new_filename = filename
-                            
-                            new_filepath = IMAGES_DIR / new_filename
-                            
-                            if photo != new_filepath:
-                                photo.rename(new_filepath)
-                            
-                            all_images.append(new_filename)
-                        
-                        # Видаляємо txt файли з метаданими, якщо є
-                        for txt_file in IMAGES_DIR.glob(f"*{post.shortcode}*.txt"):
-                            txt_file.unlink()
-                        
-                        # Видаляємо json файли з метаданими, якщо є  
-                        for json_file in IMAGES_DIR.glob(f"*{post.shortcode}*.json*"):
-                            json_file.unlink()
-                        
-                        if len(all_images) > 1:
-                            print(f"✅ Завантажено карусель ({len(all_images)} фото): {post.shortcode}")
-                        else:
-                            print(f"✅ Завантажено: {filename}")
-                    else:
-                        print(f"⚠️  Не знайдено фото для {post.shortcode}")
-                        continue
-                        
-                except Exception as e:
-                    print(f"❌ Помилка завантаження {post.shortcode}: {e}")
+                filenames = [path.name for path in existing_files]
+                print(f"⏭️  Вже існує: {post.shortcode} ({len(filenames)} фото)")
+            else:
+                post_dt = parse_timestamp(post.timestamp)
+                for index, media_url in enumerate(post.media_urls):
+                    filename = build_filename(post_dt, post.shortcode, index, len(post.media_urls))
+                    filepath = IMAGES_DIR / filename
+
+                    if not test_mode and not filepath.exists():
+                        try:
+                            filepath.write_bytes(request_bytes(media_url))
+                        except Exception as error:
+                            print(f"❌ Помилка завантаження {post.shortcode}: {error}")
+                            filenames = []
+                            break
+
+                    filenames.append(filename)
+
+                if not filenames:
                     continue
-            
-            # Зберігаємо метадані
+
+                if len(filenames) > 1:
+                    print(f"✅ Завантажено карусель ({len(filenames)} фото): {post.shortcode}")
+                else:
+                    print(f"✅ Завантажено: {filenames[0]}")
+
             post_data = {
-                "filename": all_images[0] if all_images else filename,
-                "caption": post.caption if post.caption else "",
-                "date": post.date_utc.isoformat(),
+                "filename": filenames[0],
+                "caption": post.caption,
+                "date": parse_timestamp(post.timestamp).isoformat(),
                 "likes": post.likes,
                 "shortcode": post.shortcode,
-                "url": f"https://www.instagram.com/p/{post.shortcode}/"
+                "url": post.permalink,
+                "images": filenames,
             }
-            
-            # Додаємо масив images для каруселей
-            if len(all_images) > 1:
-                post_data["images"] = all_images
+
+            if len(filenames) > 1:
                 post_data["is_carousel"] = True
-            elif all_images:
-                post_data["images"] = all_images
-            
+
             posts_data.append(post_data)
-            downloaded_count += 1
-        
-        # Зберігаємо метадані в JSON
-        with open(METADATA_FILE, 'w', encoding='utf-8') as f:
-            json.dump({
-                "last_updated": datetime.now().isoformat(),
-                "username": username,
-                "posts": posts_data
-            }, f, ensure_ascii=False, indent=2)
-        
-        print(f"\n✨ Завершено! Завантажено {downloaded_count} фото")
+
+        save_metadata(username=username, posts_data=posts_data)
+        print(f"\n✨ Завершено! Оброблено {len(posts_data)} постів")
         print(f"📄 Метадані збережено в {METADATA_FILE}")
-        
         return True
-        
-    except instaloader.exceptions.ProfileNotExistsException:
-        print(f"❌ Профіль @{username} не знайдено")
+    except GraphAPIError as error:
+        print(f"❌ Помилка Graph API: {error}")
         return False
-    except instaloader.exceptions.ConnectionException as e:
-        print(f"❌ Помилка з'єднання: {e}")
-        return False
-    except Exception as e:
-        print(f"❌ Несподівана помилка: {e}")
+    except Exception as error:
+        print(f"❌ Несподівана помилка: {error}")
         return False
 
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Sync Instagram photos via Graph API")
+    parser.add_argument("--test", action="store_true", help="Тільки metadata, без завантаження файлів")
+    parser.add_argument("--limit", type=int, default=MAX_POSTS, help="Максимальна кількість постів")
+    parser.add_argument("--username", default=INSTAGRAM_USERNAME, help="Instagram username для metadata")
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    # Парсинг аргументів
-    test_mode = "--test" in sys.argv
-    limit = MAX_POSTS
-    
-    if "--limit" in sys.argv:
-        try:
-            limit_index = sys.argv.index("--limit") + 1
-            limit = int(sys.argv[limit_index])
-        except (IndexError, ValueError):
-            print("⚠️  Невірний формат --limit, використовується значення за замовчуванням")
-    
-    # Запуск
-    success = download_instagram_photos(
-        INSTAGRAM_USERNAME, 
-        limit=limit,
-        test_mode=test_mode
-    )
-    
+    args = parse_args()
+    success = download_instagram_photos(args.username, limit=args.limit, test_mode=args.test)
     sys.exit(0 if success else 1)

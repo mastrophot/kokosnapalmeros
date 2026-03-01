@@ -5,12 +5,17 @@ on:
     - cron: '0 12 * * *'  # Раз на день о 12:00 UTC (14:00 за Києвом)
   workflow_dispatch:  # Дозволяє запускати вручну:
 
+concurrency:
+  group: sync-instagram-main
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     
     steps:
       - name: Checkout repository
@@ -33,12 +38,30 @@ jobs:
       - name: Install Node.js dependencies
         run: |
           npm install
+
+      - name: Validate required secrets
+        env:
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+        run: |
+          missing=0
+          if [ -z "$IG_USER_ID" ]; then
+            echo "::error::Missing required secret: IG_USER_ID"
+            missing=1
+          fi
+          if [ -z "$IG_ACCESS_TOKEN" ]; then
+            echo "::error::Missing required secret: IG_ACCESS_TOKEN"
+            missing=1
+          fi
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
           
       - name: Download Instagram photos
         env:
-          INSTAGRAM_SESSION_USER: ${{ secrets.IG_USERNAME }}
-          INSTAGRAM_SESSION_DATA: ${{ secrets.IG_SESSION_DATA }}
-          INSTAGRAM_PASSWORD: ${{ secrets.IG_PASSWORD }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          INSTAGRAM_USERNAME: ${{ vars.INSTAGRAM_USERNAME || 'kokosnapalmeros' }}
         run: |
           python3 sync-instagram.py --limit 20
           
@@ -50,5 +73,10 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add images/ gallery-data.json index.html
-          git diff --quiet && git diff --staged --quiet || (git commit -m "🤖 Auto-sync: Update gallery from Instagram" && git push)
+          git add images/ gallery-data.json gallery-items.js index.html
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "🤖 Auto-sync: Update gallery from Instagram"
+            git push
+          fi

@@ -1,1 +1,2 @@
-instaloader
+# Python dependencies are intentionally empty.
+# sync-instagram.py uses only the Python standard library.
