@@ -2,7 +2,7 @@ name: Sync Instagram Photos
 
 on:
   schedule:
-    - cron: '0 12 * * *'  # Раз на день о 12:00 UTC (14:00 за Києвом)
+    - cron: '0 */3 * * *'  # Кожні 3 години
   workflow_dispatch:  # Дозволяє запускати вручну:
 
 concurrency:
@@ -63,7 +63,7 @@ jobs:
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
           INSTAGRAM_USERNAME: ${{ vars.INSTAGRAM_USERNAME || 'kokosnapalmeros' }}
         run: |
-          python3 sync-instagram.py --limit 20
+          python3 sync-instagram.py --limit 50
           
       - name: Update gallery HTML
         run: |

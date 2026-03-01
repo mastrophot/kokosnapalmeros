@@ -42,7 +42,7 @@ npm run build
 
 ## GitHub Actions (автоматично)
 
-Workflow `.github/workflows/sync-instagram.yml` запускається щодня о 12:00 UTC і робить:
+Workflow `.github/workflows/sync-instagram.yml` запускається кожні 3 години і робить:
 1. Завантаження фото через Graph API
 2. Генерацію `index.html` + `gallery-items.js`
 3. Commit + push змін
