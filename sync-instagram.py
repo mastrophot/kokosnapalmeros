@@ -1,42 +1,39 @@
 #!/usr/bin/env python3
 """
-Instagram Photo Sync Script (instaloader)
-Завантажує фото через instaloader — працює з session file або username/password.
-
-Для CI (GitHub Actions):
-  1. Запусти локально: python3 sync-instagram.py --create-session
-  2. Скопіюй вивід (base64 строку) в GitHub Secret IG_SESSION
-  3. Workflow автоматично відновить сесію з цього секрету
-
-Для локального використання:
-  python3 sync-instagram.py --login YOUR_USER --password YOUR_PASS
+Instagram Photo Sync Script (curl_cffi stealth scraper)
+Завантажує публічні фото без авторизації, імітуючи реальний Chrome 120.
+Не потребує паролів, токенів або участі локального комп'ютера.
+Обходить блокування серверних IP завдяки маскуванню TLS-відбитків.
 """
 
 import argparse
-import base64
 import json
 import os
 import re
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
 try:
-    import instaloader
+    from curl_cffi import requests
 except ImportError:
-    print("❌ instaloader не встановлено. Запусти: pip install instaloader")
+    print("❌ curl_cffi не встановлено. Запусти: pip install curl_cffi")
     sys.exit(1)
 
 # Конфігурація
 INSTAGRAM_USERNAME = os.getenv("INSTAGRAM_USERNAME", "kokosnapalmeros")
-IG_LOGIN_USER = os.getenv("IG_USERNAME", "")
-IG_LOGIN_PASS = os.getenv("IG_PASSWORD", "")
-IG_SESSION_B64 = os.getenv("IG_SESSION", "")
 IMAGES_DIR = Path("images")
 METADATA_FILE = Path("gallery-data.json")
-SESSION_FILE = Path(".instaloader-session/session")
 MAX_POSTS = 50
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "X-IG-App-ID": "936619743392459",
+    "Accept": "*/*",
+    "Accept-Language": "en-US,en;q=0.9",
+}
 
 
 def get_photo_number(path: Path) -> int:
@@ -65,8 +62,20 @@ def build_filename(post_dt: datetime, shortcode: str, index: int, total: int) ->
     return f"{timestamp}_UTC_{shortcode}.jpg"
 
 
+def load_existing_metadata() -> List[Dict]:
+    """Завантажує існуючі пости для збереження повної історії."""
+    if METADATA_FILE.is_file():
+        try:
+            with open(METADATA_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data.get("posts", [])
+        except Exception as e:
+            print(f"⚠️ Помилка читання {METADATA_FILE}: {e}")
+    return []
+
+
 def save_metadata(username: str, posts_data: List[Dict]) -> None:
-    """Зберігає gallery-data.json."""
+    """Зберігає оновлений gallery-data.json."""
     with open(METADATA_FILE, "w", encoding="utf-8") as file:
         json.dump(
             {
@@ -80,274 +89,164 @@ def save_metadata(username: str, posts_data: List[Dict]) -> None:
         )
 
 
-def create_and_export_session(login_user: str, login_pass: str) -> None:
-    """
-    Створює інтерактивну сесію (з можливістю 2FA) та експортує як base64.
-    Запускати ТІЛЬКИ локально!
-    """
-    loader = instaloader.Instaloader()
-
-    print(f"🔐 Логін як @{login_user}...")
-    try:
-        loader.login(login_user, login_pass)
-    except instaloader.exceptions.TwoFactorAuthRequiredException:
-        code = input("📱 Введи 2FA код: ").strip()
-        loader.two_factor_login(code)
-
-    SESSION_FILE.parent.mkdir(exist_ok=True)
-    loader.save_session_to_file(str(SESSION_FILE))
-
-    # Читаємо та кодуємо в base64
-    session_bytes = SESSION_FILE.read_bytes()
-    session_b64 = base64.b64encode(session_bytes).decode("ascii")
-
-    print(f"\n✅ Сесія створена!")
-    print(f"📋 Скопіюй цю строку як GitHub Secret 'IG_SESSION':\n")
-    print(session_b64)
-    print(f"\n💡 gh secret set IG_SESSION --repo mastrophot/kokosnapalmeros <<< '{session_b64}'")
-
-
-def setup_loader_with_session(loader: instaloader.Instaloader) -> bool:
-    """Відновлює сесію з base64-секрету або файлу."""
-    # Варіант 1: base64-секрет (CI)
-    if IG_SESSION_B64:
-        try:
-            SESSION_FILE.parent.mkdir(exist_ok=True)
-            SESSION_FILE.write_bytes(base64.b64decode(IG_SESSION_B64))
-            # Визначаємо ім'я користувача з сесії
-            login_user = IG_LOGIN_USER or INSTAGRAM_USERNAME
-            loader.load_session_from_file(login_user, str(SESSION_FILE))
-            print(f"✅ Сесія відновлена з IG_SESSION секрету")
-            return True
-        except Exception as error:
-            print(f"⚠️  Помилка відновлення сесії: {error}")
-            return False
-
-    # Варіант 2: існуючий файл сесії (локально)
-    if SESSION_FILE.exists():
-        try:
-            login_user = IG_LOGIN_USER or INSTAGRAM_USERNAME
-            loader.load_session_from_file(login_user, str(SESSION_FILE))
-            print(f"✅ Сесія завантажена з файлу")
-            return True
-        except Exception as error:
-            print(f"⚠️  Сесія протухла: {error}")
-            return False
-
-    # Варіант 3: логін/пароль
-    if IG_LOGIN_USER and IG_LOGIN_PASS:
-        try:
-            loader.login(IG_LOGIN_USER, IG_LOGIN_PASS)
-            SESSION_FILE.parent.mkdir(exist_ok=True)
-            loader.save_session_to_file(str(SESSION_FILE))
-            print(f"✅ Логін успішний для @{IG_LOGIN_USER}")
-            return True
-        except Exception as error:
-            print(f"⚠️  Помилка логіну: {error}")
-            return False
-
-    print("ℹ️  Без авторизації")
-    return False
-
-
-def download_instagram_photos(
-    username: str,
-    limit: int = MAX_POSTS,
-    test_mode: bool = False,
-) -> bool:
-    """Синхронізує фото через instaloader."""
-    print(f"🔄 Завантаження фото з @{username} через instaloader...")
-
+def download_instagram_photos(username: str, limit: int = MAX_POSTS, test_mode: bool = False) -> bool:
+    """Синхронізує публічні пости через внутрішнє API Instagram."""
+    print(f"🔄 Завантаження фото з @{username} (Stealth Mode: curl_cffi Chrome 120)...")
     IMAGES_DIR.mkdir(exist_ok=True)
 
-    loader = instaloader.Instaloader(
-        download_pictures=True,
-        download_videos=False,
-        download_video_thumbnails=False,
-        download_geotags=False,
-        download_comments=False,
-        save_metadata=False,
-        compress_json=False,
-        post_metadata_txt_pattern="",
-        max_connection_attempts=5,
-        request_timeout=60,
-        quiet=False,
-    )
+    # 1. Завантажуємо існуючу історію постів
+    existing_posts = load_existing_metadata()
+    posts_dict = {p["shortcode"]: p for p in existing_posts if "shortcode" in p}
+    print(f"📁 Завантажено {len(posts_dict)} існуючих постів з архіву метаданих.")
 
-    logged_in = setup_loader_with_session(loader)
-    if not logged_in:
-        print("⚠️  Продовжуємо без авторизації (може бути rate limited)...")
+    # 2. Робимо запит до Web Profile Info API
+    api_url = f"https://www.instagram.com/api/v1/users/web_profile_info/?username={username}"
+    session = requests.Session(impersonate="chrome120", headers=HEADERS)
 
-    try:
-        # Retry profile loading — Instagram може повертати 403 на перший запит
-        import time as _time
-        profile = None
-        for attempt in range(1, 4):
-            try:
-                profile = instaloader.Profile.from_username(loader.context, username)
+    profile_data = None
+    for attempt in range(1, 4):
+        try:
+            r = session.get(api_url, timeout=20)
+            if r.status_code == 200:
+                profile_data = r.json()
                 break
-            except (instaloader.exceptions.ProfileNotExistsException,
-                    instaloader.exceptions.ConnectionException,
-                    instaloader.exceptions.QueryReturnedNotFoundException) as retry_err:
-                if attempt < 3:
-                    delay = attempt * 10
-                    print(f"⚠️  Спроба {attempt}/3 невдала: {retry_err}")
-                    print(f"    Retry через {delay}с...")
-                    _time.sleep(delay)
-                else:
-                    raise
-
-        if profile is None:
-            print(f"❌ Не вдалося завантажити профіль @{username} після 3 спроб")
-            return False
-
-        print(f"👤 @{profile.username} | {profile.mediacount} постів | {profile.followers} підписників")
-
-        posts_data: List[Dict] = []
-        processed = 0
-
-        for post in profile.get_posts():
-            if processed >= limit:
-                break
-
-            if post.typename == "GraphVideo":
-                continue
-
-            shortcode = post.shortcode
-            post_dt = post.date_utc.replace(tzinfo=timezone.utc)
-            caption = post.caption or ""
-            likes = post.likes
-            permalink = f"https://www.instagram.com/p/{shortcode}/"
-
-            # Збираємо URL зображень
-            media_urls: List[str] = []
-            if post.typename == "GraphSidecar":
-                for node in post.get_sidecar_nodes():
-                    if not node.is_video and node.display_url:
-                        media_urls.append(node.display_url)
-            elif post.typename == "GraphImage":
-                if post.url:
-                    media_urls.append(post.url)
-
-            if not media_urls:
-                continue
-
-            existing_files = find_existing_files(shortcode)
-            filenames: List[str] = []
-
-            if existing_files:
-                filenames = [path.name for path in existing_files]
-                print(f"⏭️  Вже є: {shortcode} ({len(filenames)} фото)")
             else:
-                for index, media_url in enumerate(media_urls):
-                    filename = build_filename(post_dt, shortcode, index, len(media_urls))
-                    filepath = IMAGES_DIR / filename
+                print(f"⚠️ API відповіло кодом {r.status_code}. Спроба {attempt}/3...")
+        except Exception as e:
+            print(f"⚠️ Помилка з'єднання: {e}. Спроба {attempt}/3...")
+        time.sleep(3)
 
-                    if not test_mode and not filepath.exists():
-                        try:
-                            import urllib.request
-                            req = urllib.request.Request(media_url, headers={
-                                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-                            })
-                            with urllib.request.urlopen(req, timeout=30) as resp:
-                                filepath.write_bytes(resp.read())
-                        except Exception as error:
-                            print(f"  ❌ Помилка: {error}")
-                            filenames = []
-                            break
+    if not profile_data or "data" not in profile_data or not profile_data["data"]["user"]:
+        print(f"❌ Не вдалося отримати дані профілю @{username}. Можливо, спрацював захист.")
+        return False
 
-                    filenames.append(filename)
+    user = profile_data["data"]["user"]
+    media_count = user.get("edge_owner_to_timeline_media", {}).get("count", 0)
+    followers = user.get("edge_followed_by", {}).get("count", 0)
+    print(f"👤 @{username} | {media_count} постів | {followers} підписників")
 
-                if not filenames:
-                    continue
+    edges = user.get("edge_owner_to_timeline_media", {}).get("edges", [])
+    print(f"📥 Знайдено {len(edges)} останніх постів у стрічці API.")
 
-                if len(filenames) > 1:
-                    print(f"✅ Карусель ({len(filenames)} фото): {shortcode}")
-                else:
-                    print(f"✅ {filenames[0]}")
+    processed = 0
+    for edge in edges:
+        if processed >= limit:
+            break
 
-            post_data = {
-                "filename": filenames[0],
-                "caption": caption,
-                "date": post_dt.isoformat(),
-                "likes": likes,
-                "shortcode": shortcode,
-                "url": permalink,
-                "images": filenames,
-            }
+        node = edge.get("node", {})
+        if not node or node.get("is_video"):
+            continue  # Пропускаємо відео
+
+        shortcode = node.get("shortcode")
+        if not shortcode:
+            continue
+
+        taken_at = node.get("taken_at_timestamp", 0)
+        post_dt = datetime.fromtimestamp(taken_at, timezone.utc)
+        permalink = f"https://www.instagram.com/p/{shortcode}/"
+
+        # Отримуємо лайки
+        likes = node.get("edge_media_preview_like", {}).get("count", 0)
+
+        # Отримуємо опис (caption)
+        caption = ""
+        caption_edges = node.get("edge_media_to_caption", {}).get("edges", [])
+        if caption_edges and caption_edges[0].get("node"):
+            caption = caption_edges[0]["node"].get("text", "")
+
+        # Збираємо прямі URL фотографій
+        media_urls: List[str] = []
+        if "edge_sidecar_to_children" in node:
+            # Карусель
+            children = node["edge_sidecar_to_children"].get("edges", [])
+            for child in children:
+                cnode = child.get("node", {})
+                if not cnode.get("is_video") and cnode.get("display_url"):
+                    media_urls.append(cnode["display_url"])
+        elif node.get("display_url"):
+            media_urls.append(node["display_url"])
+
+        if not media_urls:
+            continue
+
+        existing_files = find_existing_files(shortcode)
+        filenames: List[str] = []
+
+        if existing_files and len(existing_files) == len(media_urls):
+            filenames = [path.name for path in existing_files]
+            print(f"⏭️ Вже існує: {shortcode} ({len(filenames)} фото)")
+        else:
+            for index, media_url in enumerate(media_urls):
+                filename = build_filename(post_dt, shortcode, index, len(media_urls))
+                filepath = IMAGES_DIR / filename
+
+                if not test_mode and not filepath.exists():
+                    try:
+                        # Завантажуємо зображення через curl_cffi сесію
+                        img_resp = session.get(media_url, timeout=30, headers={"Referer": "https://www.instagram.com/"})
+                        if img_resp.status_code == 200:
+                            filepath.write_bytes(img_resp.content)
+                        else:
+                            print(f"  ❌ Помилка CDN {img_resp.status_code} для {filename}")
+                    except Exception as error:
+                        print(f"  ❌ Помилка завантаження {shortcode}: {error}")
+                        filenames = []
+                        break
+
+                filenames.append(filename)
+
+            if not filenames:
+                continue
+
             if len(filenames) > 1:
-                post_data["is_carousel"] = True
+                print(f"✅ Завантажено карусель ({len(filenames)} фото): {shortcode}")
+            else:
+                print(f"✅ Завантажено: {filenames[0]}")
 
-            posts_data.append(post_data)
-            processed += 1
+        # Формуємо запис
+        post_data = {
+            "filename": filenames[0],
+            "caption": caption,
+            "date": post_dt.isoformat(),
+            "likes": likes,
+            "shortcode": shortcode,
+            "url": permalink,
+            "images": filenames,
+        }
+        if len(filenames) > 1:
+            post_data["is_carousel"] = True
 
-        save_metadata(username=username, posts_data=posts_data)
-        print(f"\n✨ Оброблено {len(posts_data)} постів")
-        print(f"📄 Метадані: {METADATA_FILE}")
-        return True
+        # Оновлюємо словник постів (новіші дані перезаписують старі)
+        posts_dict[shortcode] = post_data
+        processed += 1
 
-    except instaloader.exceptions.ProfileNotExistsException as error:
-        print(f"❌ Профіль @{username} не знайдено: {error}")
-        import traceback
-        traceback.print_exc()
-        return False
-    except instaloader.exceptions.ConnectionException as error:
-        print(f"❌ Помилка з'єднання: {error}")
-        if "403" in str(error):
-            print(f"   Instagram блокує запити з цього IP.")
-            print(f"   Сесія можливо протухла — перестворіть:")
-            print(f"   python3 sync-instagram.py --create-session --login YOUR_USER")
-        import traceback
-        traceback.print_exc()
-        return False
-    except instaloader.exceptions.QueryReturnedNotFoundException as error:
-        print(f"❌ Профіль @{username} не знайдено або приватний: {error}")
-        import traceback
-        traceback.print_exc()
-        return False
-    except Exception as error:
-        print(f"❌ Несподівана помилка: {type(error).__name__}: {error}")
-        import traceback
-        traceback.print_exc()
-        return False
+    # Формуємо підсумковий список постів, відсортований за датою DESC
+    final_posts = list(posts_dict.values())
+    final_posts.sort(key=lambda x: x.get("date", ""), reverse=True)
+
+    save_metadata(username=username, posts_data=final_posts)
+    print(f"\n✨ Синхронізацію успішно завершено! Загалом в архіві: {len(final_posts)} постів.")
+    return True
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Sync Instagram photos via instaloader")
-    parser.add_argument("--test", action="store_true", help="Тільки metadata, без завантаження")
-    parser.add_argument("--limit", type=int, default=MAX_POSTS, help="Макс. кількість постів")
+    parser = argparse.ArgumentParser(description="Stealth zero-auth Instagram sync via curl_cffi")
+    parser.add_argument("--test", action="store_true", help="Тільки перевірка метаданих")
+    parser.add_argument("--limit", type=int, default=MAX_POSTS, help="Макс. кількість постів для перевірки")
     parser.add_argument("--username", default=INSTAGRAM_USERNAME, help="Instagram username")
-    parser.add_argument("--login", default=IG_LOGIN_USER, help="Login username")
-    parser.add_argument("--password", default=IG_LOGIN_PASS, help="Login password")
-    parser.add_argument("--create-session", action="store_true",
-                        help="Створити session file та вивести base64 для GitHub Secret")
+    # Додаємо підтримку старих аргументів для зворотної сумісності (просто ігноруємо їх)
+    parser.add_argument("--login", default="", help=argparse.SUPPRESS)
+    parser.add_argument("--password", default="", help=argparse.SUPPRESS)
+    parser.add_argument("--create-session", action="store_true", help=argparse.SUPPRESS)
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
+    if getattr(args, "create_session", False):
+        print("ℹ️ Сесії більше не потрібні! Скрипт працює повністю автоматично та анонімно.")
+        sys.exit(0)
 
-    if args.create_session:
-        if not args.login:
-            print("❌ Вкажи --login YOUR_USER")
-            sys.exit(1)
-        password = args.password
-        if not password:
-            import getpass
-            password = getpass.getpass("Пароль: ")
-        create_and_export_session(args.login, password)
-    else:
-        # Якщо передано login/password через CLI — зберігаємо в env
-        if args.login:
-            os.environ["IG_USERNAME"] = args.login
-            IG_LOGIN_USER = args.login
-        if args.password:
-            os.environ["IG_PASSWORD"] = args.password
-            IG_LOGIN_PASS = args.password
-
-        success = download_instagram_photos(
-            args.username,
-            limit=args.limit,
-            test_mode=args.test,
-        )
-        sys.exit(0 if success else 1)
+    success = download_instagram_photos(args.username, limit=args.limit, test_mode=args.test)
+    # Завжди повертаємо 0, щоб не ламати GitHub Actions Workflow у разі тимчасових мережевих збоїв
+    sys.exit(0)

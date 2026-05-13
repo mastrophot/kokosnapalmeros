@@ -1,1 +1,1 @@
-instaloader>=4.13
+curl_cffi>=0.13.0
