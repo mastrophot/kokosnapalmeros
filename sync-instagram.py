@@ -169,9 +169,9 @@ def download_instagram_photos(
         save_metadata=False,
         compress_json=False,
         post_metadata_txt_pattern="",
-        max_connection_attempts=3,
-        request_timeout=30,
-        quiet=True,
+        max_connection_attempts=5,
+        request_timeout=60,
+        quiet=False,
     )
 
     logged_in = setup_loader_with_session(loader)
@@ -179,7 +179,28 @@ def download_instagram_photos(
         print("⚠️  Продовжуємо без авторизації (може бути rate limited)...")
 
     try:
-        profile = instaloader.Profile.from_username(loader.context, username)
+        # Retry profile loading — Instagram може повертати 403 на перший запит
+        import time as _time
+        profile = None
+        for attempt in range(1, 4):
+            try:
+                profile = instaloader.Profile.from_username(loader.context, username)
+                break
+            except (instaloader.exceptions.ProfileNotExistsException,
+                    instaloader.exceptions.ConnectionException,
+                    instaloader.exceptions.QueryReturnedNotFoundException) as retry_err:
+                if attempt < 3:
+                    delay = attempt * 10
+                    print(f"⚠️  Спроба {attempt}/3 невдала: {retry_err}")
+                    print(f"    Retry через {delay}с...")
+                    _time.sleep(delay)
+                else:
+                    raise
+
+        if profile is None:
+            print(f"❌ Не вдалося завантажити профіль @{username} після 3 спроб")
+            return False
+
         print(f"👤 @{profile.username} | {profile.mediacount} постів | {profile.followers} підписників")
 
         posts_data: List[Dict] = []
@@ -265,23 +286,27 @@ def download_instagram_photos(
         print(f"📄 Метадані: {METADATA_FILE}")
         return True
 
-    except instaloader.exceptions.ProfileNotExistsException:
-        print(f"❌ Профіль @{username} не знайдено")
+    except instaloader.exceptions.ProfileNotExistsException as error:
+        print(f"❌ Профіль @{username} не знайдено: {error}")
+        import traceback
+        traceback.print_exc()
         return False
     except instaloader.exceptions.ConnectionException as error:
-        error_str = str(error)
-        if "403" in error_str:
-            print(f"❌ 403 Forbidden — Instagram блокує запити.")
-            print(f"   Потрібна сесія! Запусти локально:")
-            print(f"   python3 sync-instagram.py --create-session --login YOUR_USER --password YOUR_PASS")
-        else:
-            print(f"❌ Помилка з'єднання: {error}")
+        print(f"❌ Помилка з'єднання: {error}")
+        if "403" in str(error):
+            print(f"   Instagram блокує запити з цього IP.")
+            print(f"   Сесія можливо протухла — перестворіть:")
+            print(f"   python3 sync-instagram.py --create-session --login YOUR_USER")
+        import traceback
+        traceback.print_exc()
         return False
-    except instaloader.exceptions.QueryReturnedNotFoundException:
-        print(f"❌ Профіль @{username} не знайдено або приватний")
+    except instaloader.exceptions.QueryReturnedNotFoundException as error:
+        print(f"❌ Профіль @{username} не знайдено або приватний: {error}")
+        import traceback
+        traceback.print_exc()
         return False
     except Exception as error:
-        print(f"❌ Несподівана помилка: {error}")
+        print(f"❌ Несподівана помилка: {type(error).__name__}: {error}")
         import traceback
         traceback.print_exc()
         return False
