@@ -1,9 +1,11 @@
 name: Sync Instagram Photos
 
 on:
-  schedule:
-    - cron: '0 */12 * * *'  # Кожні 12 годин
-  workflow_dispatch:  # Дозволяє запускати вручну
+  # schedule вимкнено — Instagram блокує запити з GitHub Actions IP
+  # Синхронізація запускається локально через sync-and-push.sh
+  # schedule:
+  #   - cron: '0 */12 * * *'
+  workflow_dispatch:  # Ручний запуск для тестування
 
 concurrency:
   group: sync-instagram-main
