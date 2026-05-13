@@ -1,2 +1,1 @@
-# Python dependencies are intentionally empty.
-# sync-instagram.py uses only the Python standard library.
+instaloader>=4.13

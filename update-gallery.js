@@ -26,38 +26,33 @@ function readGalleryData() {
 }
 
 /**
- * Збирає множину відомих shortcode-файлів з metadata,
- * щоб відфільтрувати дублі без shortcode.
+ * Будує множину timestamp-префіксів, для яких існують файли з shortcode.
+ * Це дозволяє відфільтрувати старі дублі без shortcode.
+ *
+ * Файл із shortcode:  2025-11-08_17-22-19_UTC_DQzb7fiiLkt_1.jpg
+ * Prefix:             2025-11-08_17-22-19_UTC
+ *
+ * Старий дубль:       2025-11-08_17-22-19_UTC_1.jpg → skip, бо prefix є в множині
  */
-function buildKnownShortcodeFiles(galleryData) {
-  const known = new Set();
-  if (galleryData && galleryData.posts) {
-    galleryData.posts.forEach(post => {
-      const images = post.images || [post.filename];
-      images.forEach(f => known.add(f));
-    });
-  }
-  return known;
+function buildShortcodePrefixes(allFiles) {
+  const prefixes = new Set();
+  // Файл із shortcode: YYYY-MM-DD_HH-MM-SS_UTC_LETTERS..._N.jpg
+  const shortcodePattern = /^(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_UTC)_[A-Za-z]/;
+  allFiles.forEach(f => {
+    const m = f.match(shortcodePattern);
+    if (m) prefixes.add(m[1]);
+  });
+  return prefixes;
 }
 
 /**
- * Перевіряє, чи файл є дублем (без shortcode),
- * коли існує відповідний файл із shortcode.
- * Наприклад: 2025-11-08_17-22-19_UTC_1.jpg — дубль,
- * якщо є     2025-11-08_17-22-19_UTC_DQzb7fiiLkt_1.jpg
+ * Перевіряє, чи файл є дублем без shortcode
  */
-function isDuplicateWithoutShortcode(filename, allFiles) {
-  // Файли без shortcode мають формат: YYYY-MM-DD_HH-MM-SS_UTC_N.jpg
-  const match = filename.match(/^(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_UTC)_(\d+)\.jpg$/i);
+function isDuplicateWithoutShortcode(filename, shortcodePrefixes) {
+  // Файли без shortcode: YYYY-MM-DD_HH-MM-SS_UTC_N.jpg (число одразу після UTC_)
+  const match = filename.match(/^(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_UTC)_\d+\.jpg$/i);
   if (!match) return false;
-
-  const prefix = match[1]; // 2025-11-08_17-22-19_UTC
-  // Шукаємо файл із тим самим prefix, але зі shortcode між UTC_ та _N
-  // Формат: prefix_SHORTCODE_N.jpg
-  return allFiles.some(f => {
-    if (f === filename) return false;
-    return f.startsWith(prefix + '_') && f !== filename && !f.match(/^(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_UTC)_\d+\.jpg$/i);
-  });
+  return shortcodePrefixes.has(match[1]);
 }
 
 /**
@@ -65,27 +60,28 @@ function isDuplicateWithoutShortcode(filename, allFiles) {
  */
 function updateHTML(galleryData) {
     try {
-        // Читаємо HTML
         const html = fs.readFileSync(HTML_FILE, 'utf-8');
         const $ = cheerio.load(html);
 
-        // Знаходимо контейнер галереї
         const gallery = $('.gallery');
-
         if (gallery.length === 0) {
             console.error('❌ Не знайдено елемент .gallery в HTML');
             return false;
         }
 
-        // Очищаємо галерею для повного оновлення
         gallery.empty();
 
-        // Збираємо всі фото
-        const instagramPhotos = new Set();
-        const files = fs.readdirSync(IMAGES_DIR);
+        const allFiles = fs.readdirSync(IMAGES_DIR).filter(f =>
+            f.match(/^\d{4}[-_]\d{2}[-_]\d{2}.*\.jpg$/i)
+        );
 
-        // Спочатку додаємо фото з метаданих (якщо існують на диску)
-        const knownFiles = buildKnownShortcodeFiles(galleryData);
+        // Будуємо множину префіксів із shortcode-файлів
+        const shortcodePrefixes = buildShortcodePrefixes(allFiles);
+
+        // Збираємо фото: з metadata + з диска (без дублів)
+        const instagramPhotos = new Set();
+
+        // Спочатку — фото з metadata
         if (galleryData && galleryData.posts) {
             galleryData.posts.forEach(post => {
                 const images = post.images || [post.filename];
@@ -97,23 +93,23 @@ function updateHTML(galleryData) {
             });
         }
 
-        // Додаємо фото з папки, яких немає в метаданих, але ТІЛЬКИ якщо це не дуплікати
-        files.forEach(file => {
-            if (file.match(/^\d{4}[-_]\d{2}[-_]\d{2}.*\.jpg$/i)) {
-                // Пропускаємо файли без shortcode, якщо є відповідний файл із shortcode
-                if (isDuplicateWithoutShortcode(file, files)) {
-                    return; // skip duplicate
-                }
-                instagramPhotos.add(file);
+        // Потім — фото з диска, пропускаючи дублі
+        let skippedDuplicates = 0;
+        allFiles.forEach(file => {
+            if (isDuplicateWithoutShortcode(file, shortcodePrefixes)) {
+                skippedDuplicates++;
+                return;
             }
+            instagramPhotos.add(file);
         });
 
-        // Конвертуємо Set назад у масив
+        if (skippedDuplicates > 0) {
+            console.log(`🗑️  Пропущено ${skippedDuplicates} дублів без shortcode`);
+        }
+
         const photosArray = Array.from(instagramPhotos);
 
-        // Кастомне сортування:
-        // 1. Пости сортуємо за часом (filename без суфікса) - DESC (спадання)
-        // 2. Фото всередині посту (за суфіксом _1, _2) - ASC (зростання)
+        // Сортування: за timestamp DESC, всередині посту за номером ASC
         const sortedPhotos = photosArray.sort((a, b) => {
             const getBaseName = (name) => name.replace(/_\d+\.jpg$/i, '.jpg');
             const baseA = getBaseName(a);
@@ -126,7 +122,6 @@ function updateHTML(galleryData) {
                 const match = name.match(/_(\d+)\.jpg$/i);
                 return match ? parseInt(match[1]) : 0;
             };
-
             return getNum(a) - getNum(b);
         });
 
@@ -135,51 +130,39 @@ function updateHTML(galleryData) {
         const initialPhotos = sortedPhotos.slice(0, INITIAL_BATCH_SIZE);
         const deferredPhotos = sortedPhotos.slice(INITIAL_BATCH_SIZE);
 
-        // Додаємо початкові фото в HTML
         let addedCount = 0;
         initialPhotos.forEach(filename => {
             const imagePath = `./images/${filename}`;
             const caption = filename.replace(/\.(jpg|jpeg|png)$/i, '').replace(/[_-]/g, ' ');
-
-            const galleryItem = `
+            gallery.append(`
                 <a href="${imagePath}" data-fancybox="gallery" class="gallery-item-wrapper">
                     <img src="${imagePath}" alt="${caption}" class="gallery-item" loading="lazy">
-                </a>`;
-
-            gallery.append(galleryItem);
+                </a>`);
             addedCount++;
         });
 
-        console.log(`✅ HTML оновлено: додано перші ${addedCount} фото`);
+        console.log(`✅ HTML оновлено: ${addedCount} фото в DOM`);
 
-        // Зберігаємо решту фото в JS файл для лінивого завантаження
         if (deferredPhotos.length > 0) {
             const galleryItems = deferredPhotos.map(filename => ({
                 src: `./images/${filename}`,
                 thumb: `./images/${filename}`,
                 caption: filename.replace(/\.(jpg|jpeg|png)$/i, '').replace(/[_-]/g, ' ')
             }));
-
-            const jsContent = `window.GALLERY_ITEMS = ${JSON.stringify(galleryItems, null, 2)};`;
-            fs.writeFileSync('gallery-items.js', jsContent, 'utf-8');
-            console.log(`📦 Створено gallery-items.js з ${deferredPhotos.length} додатковими фото`);
+            fs.writeFileSync('gallery-items.js',
+                `window.GALLERY_ITEMS = ${JSON.stringify(galleryItems, null, 2)};`, 'utf-8');
+            console.log(`📦 gallery-items.js: ${deferredPhotos.length} додаткових фото`);
         } else {
-             // Якщо фото мало, створюємо пустий масив
-             fs.writeFileSync('gallery-items.js', 'window.GALLERY_ITEMS = [];', 'utf-8');
+            fs.writeFileSync('gallery-items.js', 'window.GALLERY_ITEMS = [];', 'utf-8');
         }
 
-        // Один коментар з датою оновлення (всередині .gallery, без дублювання)
-        const updateComment = `\n    <!-- Останнє оновлення: ${new Date().toLocaleString('uk-UA')} -->`;
-        gallery.append(updateComment);
+        console.log(`📊 Всього в галереї: ${sortedPhotos.length} фото`);
 
-        // Зберігаємо оновлений HTML
+        gallery.append(`\n    <!-- Останнє оновлення: ${new Date().toLocaleString('uk-UA')} -->`);
         fs.writeFileSync(HTML_FILE, $.html(), 'utf-8');
-
         console.log(`\n✨ Галерею оновлено!`);
-        console.log(`📄 Файл ${HTML_FILE} збережено`);
 
         return true;
-
     } catch (error) {
         console.error('❌ Помилка оновлення HTML:', error.message);
         return false;
@@ -191,7 +174,6 @@ function updateHTML(galleryData) {
  */
 function verifyImages(galleryData) {
   let missingCount = 0;
-
   galleryData.posts.forEach((post) => {
     const imagePath = path.join(IMAGES_DIR, post.filename);
     if (!fs.existsSync(imagePath)) {
@@ -199,42 +181,29 @@ function verifyImages(galleryData) {
       missingCount++;
     }
   });
-
   if (missingCount > 0) {
-    console.warn(
-      `\n⚠️  Відсутні ${missingCount} файлів. Запустіть 'npm run sync' для завантаження.`
-    );
+    console.warn(`\n⚠️  Відсутні ${missingCount} файлів.`);
   }
-
   return missingCount === 0;
 }
 
-// Головна функція
 function main() {
   console.log("🔄 Оновлення галереї...\n");
 
-  // Перевіряємо наявність метаданих (опціонально)
   let galleryData = null;
   if (fs.existsSync(METADATA_FILE)) {
     galleryData = readGalleryData();
     if (galleryData) {
-      console.log(
-        `📊 Знайдено ${galleryData.posts.length} постів від @${galleryData.username}\n`
-      );
+      console.log(`📊 Знайдено ${galleryData.posts.length} постів від @${galleryData.username}\n`);
     }
   } else {
-    console.log(
-      "ℹ️  Файл gallery-data.json не знайдено, додаємо всі Instagram фото з папки images\n"
-    );
+    console.log("ℹ️  gallery-data.json не знайдено, беремо всі фото з images/\n");
   }
 
-  // Оновлюємо HTML
   const success = updateHTML(galleryData);
-
   process.exit(success ? 0 : 1);
 }
 
-// Запуск
 if (require.main === module) {
   main();
 }
