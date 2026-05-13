@@ -26,6 +26,41 @@ function readGalleryData() {
 }
 
 /**
+ * Збирає множину відомих shortcode-файлів з metadata,
+ * щоб відфільтрувати дублі без shortcode.
+ */
+function buildKnownShortcodeFiles(galleryData) {
+  const known = new Set();
+  if (galleryData && galleryData.posts) {
+    galleryData.posts.forEach(post => {
+      const images = post.images || [post.filename];
+      images.forEach(f => known.add(f));
+    });
+  }
+  return known;
+}
+
+/**
+ * Перевіряє, чи файл є дублем (без shortcode),
+ * коли існує відповідний файл із shortcode.
+ * Наприклад: 2025-11-08_17-22-19_UTC_1.jpg — дубль,
+ * якщо є     2025-11-08_17-22-19_UTC_DQzb7fiiLkt_1.jpg
+ */
+function isDuplicateWithoutShortcode(filename, allFiles) {
+  // Файли без shortcode мають формат: YYYY-MM-DD_HH-MM-SS_UTC_N.jpg
+  const match = filename.match(/^(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_UTC)_(\d+)\.jpg$/i);
+  if (!match) return false;
+
+  const prefix = match[1]; // 2025-11-08_17-22-19_UTC
+  // Шукаємо файл із тим самим prefix, але зі shortcode між UTC_ та _N
+  // Формат: prefix_SHORTCODE_N.jpg
+  return allFiles.some(f => {
+    if (f === filename) return false;
+    return f.startsWith(prefix + '_') && f !== filename && !f.match(/^(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_UTC)_\d+\.jpg$/i);
+  });
+}
+
+/**
  * Оновлює HTML файл з новими фото
  */
 function updateHTML(galleryData) {
@@ -45,16 +80,15 @@ function updateHTML(galleryData) {
         // Очищаємо галерею для повного оновлення
         gallery.empty();
 
-        // Отримуємо всі Instagram фото з папки images
+        // Збираємо всі фото
         const instagramPhotos = new Set();
         const files = fs.readdirSync(IMAGES_DIR);
 
-        // Додаємо фото з метаданих, якщо вони існують на диску
+        // Спочатку додаємо фото з метаданих (якщо існують на диску)
+        const knownFiles = buildKnownShortcodeFiles(galleryData);
         if (galleryData && galleryData.posts) {
             galleryData.posts.forEach(post => {
-                // Використовуємо масив images якщо є, інакше filename
                 const images = post.images || [post.filename];
-                
                 images.forEach(filename => {
                     if (fs.existsSync(path.join(IMAGES_DIR, filename))) {
                         instagramPhotos.add(filename);
@@ -63,9 +97,13 @@ function updateHTML(galleryData) {
             });
         }
 
-        // Додаємо інші фото з папки, яких немає в метаданих
+        // Додаємо фото з папки, яких немає в метаданих, але ТІЛЬКИ якщо це не дуплікати
         files.forEach(file => {
             if (file.match(/^\d{4}[-_]\d{2}[-_]\d{2}.*\.jpg$/i)) {
+                // Пропускаємо файли без shortcode, якщо є відповідний файл із shortcode
+                if (isDuplicateWithoutShortcode(file, files)) {
+                    return; // skip duplicate
+                }
                 instagramPhotos.add(file);
             }
         });
@@ -77,24 +115,19 @@ function updateHTML(galleryData) {
         // 1. Пости сортуємо за часом (filename без суфікса) - DESC (спадання)
         // 2. Фото всередині посту (за суфіксом _1, _2) - ASC (зростання)
         const sortedPhotos = photosArray.sort((a, b) => {
-            // Витягуємо базову частину імені (без суфікса _N.jpg)
-            // Приклад: 2026-01-30_00-52-57_UTC_CODE -> 2026-01-30_00-52-57_UTC_CODE
-            // Приклад: ..._CODE_1.jpg -> ..._CODE
-            
             const getBaseName = (name) => name.replace(/_\d+\.jpg$/i, '.jpg');
             const baseA = getBaseName(a);
             const baseB = getBaseName(b);
 
-            if (baseA > baseB) return -1; // A новіше -> A раніше (спадання)
-            if (baseA < baseB) return 1;  // B новіше -> B раніше
+            if (baseA > baseB) return -1;
+            if (baseA < baseB) return 1;
 
-            // Якщо бази однакові (один пост), сортуємо за номером
             const getNum = (name) => {
                 const match = name.match(/_(\d+)\.jpg$/i);
                 return match ? parseInt(match[1]) : 0;
             };
 
-            return getNum(a) - getNum(b); // 1, 2, 3... (зростання)
+            return getNum(a) - getNum(b);
         });
 
         // Розділяємо на початкове завантаження і відкладене
@@ -135,7 +168,7 @@ function updateHTML(galleryData) {
              fs.writeFileSync('gallery-items.js', 'window.GALLERY_ITEMS = [];', 'utf-8');
         }
 
-        // Додаємо коментар з датою оновлення
+        // Один коментар з датою оновлення (всередині .gallery, без дублювання)
         const updateComment = `\n    <!-- Останнє оновлення: ${new Date().toLocaleString('uk-UA')} -->`;
         gallery.append(updateComment);
 
