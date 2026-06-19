@@ -1,5 +1,35 @@
 window.GALLERY_ITEMS = [
   {
+    "src": "./images/2026-01-30_00-52-57_UTC_DUHYrzoCBPT_2.jpg",
+    "thumb": "./images/2026-01-30_00-52-57_UTC_DUHYrzoCBPT_2.jpg",
+    "caption": "2026 01 30 00 52 57 UTC DUHYrzoCBPT 2"
+  },
+  {
+    "src": "./images/2026-01-30_00-52-57_UTC_DUHYrzoCBPT_3.jpg",
+    "thumb": "./images/2026-01-30_00-52-57_UTC_DUHYrzoCBPT_3.jpg",
+    "caption": "2026 01 30 00 52 57 UTC DUHYrzoCBPT 3"
+  },
+  {
+    "src": "./images/2026-01-30_00-52-57_UTC_DUHYrzoCBPT_4.jpg",
+    "thumb": "./images/2026-01-30_00-52-57_UTC_DUHYrzoCBPT_4.jpg",
+    "caption": "2026 01 30 00 52 57 UTC DUHYrzoCBPT 4"
+  },
+  {
+    "src": "./images/2026-01-30_00-52-57_UTC_DUHYrzoCBPT_5.jpg",
+    "thumb": "./images/2026-01-30_00-52-57_UTC_DUHYrzoCBPT_5.jpg",
+    "caption": "2026 01 30 00 52 57 UTC DUHYrzoCBPT 5"
+  },
+  {
+    "src": "./images/2026-01-30_00-52-57_UTC_DUHYrzoCBPT_6.jpg",
+    "thumb": "./images/2026-01-30_00-52-57_UTC_DUHYrzoCBPT_6.jpg",
+    "caption": "2026 01 30 00 52 57 UTC DUHYrzoCBPT 6"
+  },
+  {
+    "src": "./images/2026-01-30_00-52-57_UTC_DUHYrzoCBPT_7.jpg",
+    "thumb": "./images/2026-01-30_00-52-57_UTC_DUHYrzoCBPT_7.jpg",
+    "caption": "2026 01 30 00 52 57 UTC DUHYrzoCBPT 7"
+  },
+  {
     "src": "./images/2026-01-30_00-52-57_UTC_DUHYrzoCBPT_8.jpg",
     "thumb": "./images/2026-01-30_00-52-57_UTC_DUHYrzoCBPT_8.jpg",
     "caption": "2026 01 30 00 52 57 UTC DUHYrzoCBPT 8"
