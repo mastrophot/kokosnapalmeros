@@ -1,5 +1,30 @@
 window.GALLERY_ITEMS = [
   {
+    "src": "./images/2026-07-12_01-20-37_UTC_DarJbDeiOnL_11.jpg",
+    "thumb": "./images/2026-07-12_01-20-37_UTC_DarJbDeiOnL_11.jpg",
+    "caption": "2026 07 12 01 20 37 UTC DarJbDeiOnL 11"
+  },
+  {
+    "src": "./images/2026-07-12_01-20-37_UTC_DarJbDeiOnL_12.jpg",
+    "thumb": "./images/2026-07-12_01-20-37_UTC_DarJbDeiOnL_12.jpg",
+    "caption": "2026 07 12 01 20 37 UTC DarJbDeiOnL 12"
+  },
+  {
+    "src": "./images/2026-07-12_01-20-37_UTC_DarJbDeiOnL_13.jpg",
+    "thumb": "./images/2026-07-12_01-20-37_UTC_DarJbDeiOnL_13.jpg",
+    "caption": "2026 07 12 01 20 37 UTC DarJbDeiOnL 13"
+  },
+  {
+    "src": "./images/2026-07-03_15-05-03_UTC_DaVcnhPCPyE_1.jpg",
+    "thumb": "./images/2026-07-03_15-05-03_UTC_DaVcnhPCPyE_1.jpg",
+    "caption": "2026 07 03 15 05 03 UTC DaVcnhPCPyE 1"
+  },
+  {
+    "src": "./images/2026-07-03_15-05-03_UTC_DaVcnhPCPyE_2.jpg",
+    "thumb": "./images/2026-07-03_15-05-03_UTC_DaVcnhPCPyE_2.jpg",
+    "caption": "2026 07 03 15 05 03 UTC DaVcnhPCPyE 2"
+  },
+  {
     "src": "./images/2026-07-03_15-05-03_UTC_DaVcnhPCPyE_3.jpg",
     "thumb": "./images/2026-07-03_15-05-03_UTC_DaVcnhPCPyE_3.jpg",
     "caption": "2026 07 03 15 05 03 UTC DaVcnhPCPyE 3"
