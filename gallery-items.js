@@ -1,5 +1,45 @@
 window.GALLERY_ITEMS = [
   {
+    "src": "./images/2026-07-12_01-20-37_UTC_DarJbDeiOnL_3.jpg",
+    "thumb": "./images/2026-07-12_01-20-37_UTC_DarJbDeiOnL_3.jpg",
+    "caption": "2026 07 12 01 20 37 UTC DarJbDeiOnL 3"
+  },
+  {
+    "src": "./images/2026-07-12_01-20-37_UTC_DarJbDeiOnL_4.jpg",
+    "thumb": "./images/2026-07-12_01-20-37_UTC_DarJbDeiOnL_4.jpg",
+    "caption": "2026 07 12 01 20 37 UTC DarJbDeiOnL 4"
+  },
+  {
+    "src": "./images/2026-07-12_01-20-37_UTC_DarJbDeiOnL_5.jpg",
+    "thumb": "./images/2026-07-12_01-20-37_UTC_DarJbDeiOnL_5.jpg",
+    "caption": "2026 07 12 01 20 37 UTC DarJbDeiOnL 5"
+  },
+  {
+    "src": "./images/2026-07-12_01-20-37_UTC_DarJbDeiOnL_6.jpg",
+    "thumb": "./images/2026-07-12_01-20-37_UTC_DarJbDeiOnL_6.jpg",
+    "caption": "2026 07 12 01 20 37 UTC DarJbDeiOnL 6"
+  },
+  {
+    "src": "./images/2026-07-12_01-20-37_UTC_DarJbDeiOnL_7.jpg",
+    "thumb": "./images/2026-07-12_01-20-37_UTC_DarJbDeiOnL_7.jpg",
+    "caption": "2026 07 12 01 20 37 UTC DarJbDeiOnL 7"
+  },
+  {
+    "src": "./images/2026-07-12_01-20-37_UTC_DarJbDeiOnL_8.jpg",
+    "thumb": "./images/2026-07-12_01-20-37_UTC_DarJbDeiOnL_8.jpg",
+    "caption": "2026 07 12 01 20 37 UTC DarJbDeiOnL 8"
+  },
+  {
+    "src": "./images/2026-07-12_01-20-37_UTC_DarJbDeiOnL_9.jpg",
+    "thumb": "./images/2026-07-12_01-20-37_UTC_DarJbDeiOnL_9.jpg",
+    "caption": "2026 07 12 01 20 37 UTC DarJbDeiOnL 9"
+  },
+  {
+    "src": "./images/2026-07-12_01-20-37_UTC_DarJbDeiOnL_10.jpg",
+    "thumb": "./images/2026-07-12_01-20-37_UTC_DarJbDeiOnL_10.jpg",
+    "caption": "2026 07 12 01 20 37 UTC DarJbDeiOnL 10"
+  },
+  {
     "src": "./images/2026-07-12_01-20-37_UTC_DarJbDeiOnL_11.jpg",
     "thumb": "./images/2026-07-12_01-20-37_UTC_DarJbDeiOnL_11.jpg",
     "caption": "2026 07 12 01 20 37 UTC DarJbDeiOnL 11"
