@@ -1,5 +1,15 @@
 window.GALLERY_ITEMS = [
   {
+    "src": "./images/2026-07-28_14-05-23_UTC_DbVtqT9CJUd_3.jpg",
+    "thumb": "./images/2026-07-28_14-05-23_UTC_DbVtqT9CJUd_3.jpg",
+    "caption": "2026 07 28 14 05 23 UTC DbVtqT9CJUd 3"
+  },
+  {
+    "src": "./images/2026-07-28_14-05-23_UTC_DbVtqT9CJUd_4.jpg",
+    "thumb": "./images/2026-07-28_14-05-23_UTC_DbVtqT9CJUd_4.jpg",
+    "caption": "2026 07 28 14 05 23 UTC DbVtqT9CJUd 4"
+  },
+  {
     "src": "./images/2026-07-28_14-05-23_UTC_DbVtqT9CJUd_5.jpg",
     "thumb": "./images/2026-07-28_14-05-23_UTC_DbVtqT9CJUd_5.jpg",
     "caption": "2026 07 28 14 05 23 UTC DbVtqT9CJUd 5"
