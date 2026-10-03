@@ -213,7 +213,15 @@ def download_instagram_photos(
     posts_dict = {p["shortcode"]: p for p in existing_posts if "shortcode" in p}
     print(f"📁 Завантажено {len(posts_dict)} існуючих постів з архіву.")
 
-    session = requests.Session(impersonate="chrome120")
+    cookies = {}
+    session_val = os.getenv("IG_SESSION", "").strip()
+    if session_val:
+        cookies["sessionid"] = session_val
+        import urllib.parse
+        raw_sid = urllib.parse.unquote(session_val)
+        if ":" in raw_sid:
+            cookies["ds_user_id"] = raw_sid.split(":")[0]
+    session = requests.Session(impersonate="chrome120", cookies=cookies if cookies else None)
 
     # 2. Отримуємо останні пости з профілю
     edges = extract_timeline_from_html(session, username)
