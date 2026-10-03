@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-Instagram Photo Sync Script (curl_cffi stealth scraper)
-Завантажує публічні фото без авторизації, імітуючи реальний Chrome 120.
-Не потребує паролів, токенів або участі локального комп'ютера.
-Обходить блокування серверних IP завдяки маскуванню TLS-відбитків.
+Instagram Photo Sync Script (curl_cffi scraper with session support)
+Завантажує публічні фото, підтримуючи як авторизовані сесії (IG_SESSION / sessionid),
+так і спроби fallback-запитів з маскуванням під реальний Chrome.
 """
 
 import argparse
+import base64
 import json
 import os
+import pickle
 import re
 import sys
 import time
@@ -33,7 +34,69 @@ HEADERS = {
     "X-IG-App-ID": "936619743392459",
     "Accept": "*/*",
     "Accept-Language": "en-US,en;q=0.9",
+    "Sec-Fetch-Site": "same-origin",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Dest": "empty",
 }
+
+
+def extract_cookies(session_val: str) -> str:
+    """Нормалізує значення IG_SESSION (raw sessionid, Cookie header або base64) у валідний рядок Cookie."""
+    session_val = (session_val or "").strip()
+    if not session_val:
+        return ""
+
+    # 1. Спроба декодувати як base64 (наприклад, старий instaloader session dump або закодований рядок)
+    try:
+        if all(c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\n\r" for c in session_val) and len(session_val) > 20:
+            raw = base64.b64decode(session_val)
+            # Спроба unpickle CookieJar
+            try:
+                jar = pickle.loads(raw)
+                cookies_list = []
+                if hasattr(jar, "__iter__"):
+                    for c in jar:
+                        if hasattr(c, "name") and hasattr(c, "value"):
+                            cookies_list.append(f"{c.name}={c.value}")
+                if not cookies_list and hasattr(jar, "items"):
+                    for k, v in jar.items():
+                        cookies_list.append(f"{k}={v}")
+                if cookies_list:
+                    return "; ".join(cookies_list)
+            except Exception:
+                pass
+
+            # Текстовий вміст всередині base64
+            try:
+                text = raw.decode("utf-8").strip()
+                if "sessionid" in text:
+                    if "=" in text:
+                        return text
+                    return f"sessionid={text}"
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    # 2. Якщо це вже формат Cookie (sessionid=xxx; ...)
+    if "sessionid=" in session_val:
+        return session_val
+
+    # 3. Чистий sessionid (наприклад 68123...%3A...)
+    if "=" not in session_val:
+        return f"sessionid={session_val}"
+
+    return session_val
+
+
+def parse_cookie_dict(cookie_str: str) -> Dict[str, str]:
+    """Перетворює Cookie header string у словник для curl_cffi."""
+    cookies = {}
+    for part in cookie_str.split(";"):
+        if "=" in part:
+            k, v = part.strip().split("=", 1)
+            cookies[k.strip()] = v.strip()
+    return cookies
 
 
 def get_photo_number(path: Path) -> int:
@@ -44,6 +107,8 @@ def get_photo_number(path: Path) -> int:
 
 def find_existing_files(shortcode: str) -> List[Path]:
     """Шукає вже завантажені фото поста за shortcode."""
+    if not IMAGES_DIR.exists():
+        return []
     valid_ext = {".jpg", ".jpeg", ".png", ".webp"}
     files = [
         path
@@ -89,9 +154,14 @@ def save_metadata(username: str, posts_data: List[Dict]) -> None:
         )
 
 
-def download_instagram_photos(username: str, limit: int = MAX_POSTS, test_mode: bool = False) -> bool:
-    """Синхронізує публічні пости через внутрішнє API Instagram."""
-    print(f"🔄 Завантаження фото з @{username} (Stealth Mode: curl_cffi Chrome 120)...")
+def download_instagram_photos(
+    username: str,
+    limit: int = MAX_POSTS,
+    test_mode: bool = False,
+    session_val: str = "",
+) -> bool:
+    """Синхронізує публічні пости через Web Profile Info API Instagram."""
+    print(f"🔄 Завантаження фото з @{username} (Chrome 120 stealth session)...")
     IMAGES_DIR.mkdir(exist_ok=True)
 
     # 1. Завантажуємо існуючу історію постів
@@ -99,25 +169,42 @@ def download_instagram_photos(username: str, limit: int = MAX_POSTS, test_mode: 
     posts_dict = {p["shortcode"]: p for p in existing_posts if "shortcode" in p}
     print(f"📁 Завантажено {len(posts_dict)} існуючих постів з архіву метаданих.")
 
-    # 2. Робимо запит до Web Profile Info API
+    # 2. Налаштовуємо cookies / заголовки
+    cookie_str = extract_cookies(session_val or os.getenv("IG_SESSION", ""))
+    cookie_dict = parse_cookie_dict(cookie_str) if cookie_str else {}
+    req_headers = HEADERS.copy()
+    if cookie_str:
+        req_headers["Cookie"] = cookie_str
+        print("🔑 Використовується сесія з IG_SESSION.")
+    else:
+        print("⚠️ IG_SESSION не знайдено або порожній, спроба анонімного запиту...")
+
     api_url = f"https://www.instagram.com/api/v1/users/web_profile_info/?username={username}"
-    session = requests.Session(impersonate="chrome120", headers=HEADERS)
+    session = requests.Session(impersonate="chrome120", headers=req_headers, cookies=cookie_dict)
 
     profile_data = None
+    last_status = None
     for attempt in range(1, 4):
         try:
             r = session.get(api_url, timeout=20)
+            last_status = r.status_code
             if r.status_code == 200:
                 profile_data = r.json()
                 break
+            elif r.status_code == 401:
+                print(f"⚠️ API відповіло кодом 401 (Unauthorized / Login Required). Спроба {attempt}/3...")
             else:
                 print(f"⚠️ API відповіло кодом {r.status_code}. Спроба {attempt}/3...")
         except Exception as e:
             print(f"⚠️ Помилка з'єднання: {e}. Спроба {attempt}/3...")
         time.sleep(3)
 
-    if not profile_data or "data" not in profile_data or not profile_data["data"]["user"]:
-        print(f"❌ Не вдалося отримати дані профілю @{username}. Можливо, спрацював захист.")
+    if not profile_data or "data" not in profile_data or not profile_data.get("data", {}).get("user"):
+        print(f"\n❌ Не вдалося отримати дані профілю @{username} (код: {last_status}).")
+        if last_status == 401 or not cookie_str:
+            print("👉 Instagram заблокував анонімний доступ або надана сесія протухла.")
+            print("💡 Оновіть секрет IG_SESSION в репозиторії свіжим sessionid:")
+            print("   gh secret set IG_SESSION -R mastrophot/kokosnapalmeros -b 'ВАШ_SESSIONID'")
         return False
 
     user = profile_data["data"]["user"]
@@ -129,6 +216,7 @@ def download_instagram_photos(username: str, limit: int = MAX_POSTS, test_mode: 
     print(f"📥 Знайдено {len(edges)} останніх постів у стрічці API.")
 
     processed = 0
+    new_downloaded = 0
     for edge in edges:
         if processed >= limit:
             break
@@ -198,6 +286,7 @@ def download_instagram_photos(username: str, limit: int = MAX_POSTS, test_mode: 
             if not filenames:
                 continue
 
+            new_downloaded += len(filenames)
             if len(filenames) > 1:
                 print(f"✅ Завантажено карусель ({len(filenames)} фото): {shortcode}")
             else:
@@ -225,16 +314,16 @@ def download_instagram_photos(username: str, limit: int = MAX_POSTS, test_mode: 
     final_posts.sort(key=lambda x: x.get("date", ""), reverse=True)
 
     save_metadata(username=username, posts_data=final_posts)
-    print(f"\n✨ Синхронізацію успішно завершено! Загалом в архіві: {len(final_posts)} постів.")
+    print(f"\n✨ Синхронізацію успішно завершено! Завантажено нових: {new_downloaded}. Загалом в архіві: {len(final_posts)} постів.")
     return True
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Stealth zero-auth Instagram sync via curl_cffi")
+    parser = argparse.ArgumentParser(description="Instagram sync via curl_cffi with session support")
     parser.add_argument("--test", action="store_true", help="Тільки перевірка метаданих")
     parser.add_argument("--limit", type=int, default=MAX_POSTS, help="Макс. кількість постів для перевірки")
     parser.add_argument("--username", default=INSTAGRAM_USERNAME, help="Instagram username")
-    # Додаємо підтримку старих аргументів для зворотної сумісності (просто ігноруємо їх)
+    parser.add_argument("--session", default=os.getenv("IG_SESSION", ""), help="Instagram sessionid або Cookie string")
     parser.add_argument("--login", default="", help=argparse.SUPPRESS)
     parser.add_argument("--password", default="", help=argparse.SUPPRESS)
     parser.add_argument("--create-session", action="store_true", help=argparse.SUPPRESS)
@@ -244,9 +333,15 @@ def parse_args() -> argparse.Namespace:
 if __name__ == "__main__":
     args = parse_args()
     if getattr(args, "create_session", False):
-        print("ℹ️ Сесії більше не потрібні! Скрипт працює повністю автоматично та анонімно.")
+        print("ℹ️ Вкажіть sessionid безпосередньо у секрет IG_SESSION або аргумент --session.")
         sys.exit(0)
 
-    success = download_instagram_photos(args.username, limit=args.limit, test_mode=args.test)
-    # Завжди повертаємо 0, щоб не ламати GitHub Actions Workflow у разі тимчасових мережевих збоїв
+    success = download_instagram_photos(
+        args.username,
+        limit=args.limit,
+        test_mode=args.test,
+        session_val=args.session,
+    )
+    if not success:
+        sys.exit(1)
     sys.exit(0)
