@@ -1,5 +1,170 @@
 window.GALLERY_ITEMS = [
   {
+    "src": "./images/2026-09-26_10-26-20_UTC_Ddv0SfGCIRK_2.jpg",
+    "thumb": "./images/2026-09-26_10-26-20_UTC_Ddv0SfGCIRK_2.jpg",
+    "caption": "2026 09 26 10 26 20 UTC Ddv0SfGCIRK 2"
+  },
+  {
+    "src": "./images/2026-09-26_10-26-20_UTC_Ddv0SfGCIRK_3.jpg",
+    "thumb": "./images/2026-09-26_10-26-20_UTC_Ddv0SfGCIRK_3.jpg",
+    "caption": "2026 09 26 10 26 20 UTC Ddv0SfGCIRK 3"
+  },
+  {
+    "src": "./images/2026-09-26_10-26-20_UTC_Ddv0SfGCIRK_4.jpg",
+    "thumb": "./images/2026-09-26_10-26-20_UTC_Ddv0SfGCIRK_4.jpg",
+    "caption": "2026 09 26 10 26 20 UTC Ddv0SfGCIRK 4"
+  },
+  {
+    "src": "./images/2026-09-26_10-26-20_UTC_Ddv0SfGCIRK_5.jpg",
+    "thumb": "./images/2026-09-26_10-26-20_UTC_Ddv0SfGCIRK_5.jpg",
+    "caption": "2026 09 26 10 26 20 UTC Ddv0SfGCIRK 5"
+  },
+  {
+    "src": "./images/2026-09-26_10-26-20_UTC_Ddv0SfGCIRK_6.jpg",
+    "thumb": "./images/2026-09-26_10-26-20_UTC_Ddv0SfGCIRK_6.jpg",
+    "caption": "2026 09 26 10 26 20 UTC Ddv0SfGCIRK 6"
+  },
+  {
+    "src": "./images/2026-09-15_17-33-40_UTC_DdUQcx3COgr_1.jpg",
+    "thumb": "./images/2026-09-15_17-33-40_UTC_DdUQcx3COgr_1.jpg",
+    "caption": "2026 09 15 17 33 40 UTC DdUQcx3COgr 1"
+  },
+  {
+    "src": "./images/2026-09-15_17-33-40_UTC_DdUQcx3COgr_2.jpg",
+    "thumb": "./images/2026-09-15_17-33-40_UTC_DdUQcx3COgr_2.jpg",
+    "caption": "2026 09 15 17 33 40 UTC DdUQcx3COgr 2"
+  },
+  {
+    "src": "./images/2026-09-15_17-33-40_UTC_DdUQcx3COgr_3.jpg",
+    "thumb": "./images/2026-09-15_17-33-40_UTC_DdUQcx3COgr_3.jpg",
+    "caption": "2026 09 15 17 33 40 UTC DdUQcx3COgr 3"
+  },
+  {
+    "src": "./images/2026-09-15_17-33-40_UTC_DdUQcx3COgr_4.jpg",
+    "thumb": "./images/2026-09-15_17-33-40_UTC_DdUQcx3COgr_4.jpg",
+    "caption": "2026 09 15 17 33 40 UTC DdUQcx3COgr 4"
+  },
+  {
+    "src": "./images/2026-09-15_17-33-40_UTC_DdUQcx3COgr_5.jpg",
+    "thumb": "./images/2026-09-15_17-33-40_UTC_DdUQcx3COgr_5.jpg",
+    "caption": "2026 09 15 17 33 40 UTC DdUQcx3COgr 5"
+  },
+  {
+    "src": "./images/2026-09-15_17-33-40_UTC_DdUQcx3COgr_6.jpg",
+    "thumb": "./images/2026-09-15_17-33-40_UTC_DdUQcx3COgr_6.jpg",
+    "caption": "2026 09 15 17 33 40 UTC DdUQcx3COgr 6"
+  },
+  {
+    "src": "./images/2026-09-15_17-33-40_UTC_DdUQcx3COgr_7.jpg",
+    "thumb": "./images/2026-09-15_17-33-40_UTC_DdUQcx3COgr_7.jpg",
+    "caption": "2026 09 15 17 33 40 UTC DdUQcx3COgr 7"
+  },
+  {
+    "src": "./images/2026-09-15_17-33-40_UTC_DdUQcx3COgr_8.jpg",
+    "thumb": "./images/2026-09-15_17-33-40_UTC_DdUQcx3COgr_8.jpg",
+    "caption": "2026 09 15 17 33 40 UTC DdUQcx3COgr 8"
+  },
+  {
+    "src": "./images/2026-09-13_14-15-46_UTC_DdOwNjIiCZ9_1.jpg",
+    "thumb": "./images/2026-09-13_14-15-46_UTC_DdOwNjIiCZ9_1.jpg",
+    "caption": "2026 09 13 14 15 46 UTC DdOwNjIiCZ9 1"
+  },
+  {
+    "src": "./images/2026-09-13_14-15-46_UTC_DdOwNjIiCZ9_2.jpg",
+    "thumb": "./images/2026-09-13_14-15-46_UTC_DdOwNjIiCZ9_2.jpg",
+    "caption": "2026 09 13 14 15 46 UTC DdOwNjIiCZ9 2"
+  },
+  {
+    "src": "./images/2026-09-13_14-15-46_UTC_DdOwNjIiCZ9_3.jpg",
+    "thumb": "./images/2026-09-13_14-15-46_UTC_DdOwNjIiCZ9_3.jpg",
+    "caption": "2026 09 13 14 15 46 UTC DdOwNjIiCZ9 3"
+  },
+  {
+    "src": "./images/2026-09-13_14-15-46_UTC_DdOwNjIiCZ9_4.jpg",
+    "thumb": "./images/2026-09-13_14-15-46_UTC_DdOwNjIiCZ9_4.jpg",
+    "caption": "2026 09 13 14 15 46 UTC DdOwNjIiCZ9 4"
+  },
+  {
+    "src": "./images/2026-09-13_14-15-46_UTC_DdOwNjIiCZ9_5.jpg",
+    "thumb": "./images/2026-09-13_14-15-46_UTC_DdOwNjIiCZ9_5.jpg",
+    "caption": "2026 09 13 14 15 46 UTC DdOwNjIiCZ9 5"
+  },
+  {
+    "src": "./images/2026-08-18_12-04-22_UTC_DcLkgToiPtz_1.jpg",
+    "thumb": "./images/2026-08-18_12-04-22_UTC_DcLkgToiPtz_1.jpg",
+    "caption": "2026 08 18 12 04 22 UTC DcLkgToiPtz 1"
+  },
+  {
+    "src": "./images/2026-08-18_12-04-22_UTC_DcLkgToiPtz_2.jpg",
+    "thumb": "./images/2026-08-18_12-04-22_UTC_DcLkgToiPtz_2.jpg",
+    "caption": "2026 08 18 12 04 22 UTC DcLkgToiPtz 2"
+  },
+  {
+    "src": "./images/2026-08-18_12-04-22_UTC_DcLkgToiPtz_3.jpg",
+    "thumb": "./images/2026-08-18_12-04-22_UTC_DcLkgToiPtz_3.jpg",
+    "caption": "2026 08 18 12 04 22 UTC DcLkgToiPtz 3"
+  },
+  {
+    "src": "./images/2026-08-18_12-04-22_UTC_DcLkgToiPtz_4.jpg",
+    "thumb": "./images/2026-08-18_12-04-22_UTC_DcLkgToiPtz_4.jpg",
+    "caption": "2026 08 18 12 04 22 UTC DcLkgToiPtz 4"
+  },
+  {
+    "src": "./images/2026-08-18_12-04-22_UTC_DcLkgToiPtz_5.jpg",
+    "thumb": "./images/2026-08-18_12-04-22_UTC_DcLkgToiPtz_5.jpg",
+    "caption": "2026 08 18 12 04 22 UTC DcLkgToiPtz 5"
+  },
+  {
+    "src": "./images/2026-08-16_12-32-34_UTC_DcGeJIGCKsn_1.jpg",
+    "thumb": "./images/2026-08-16_12-32-34_UTC_DcGeJIGCKsn_1.jpg",
+    "caption": "2026 08 16 12 32 34 UTC DcGeJIGCKsn 1"
+  },
+  {
+    "src": "./images/2026-08-16_12-32-34_UTC_DcGeJIGCKsn_2.jpg",
+    "thumb": "./images/2026-08-16_12-32-34_UTC_DcGeJIGCKsn_2.jpg",
+    "caption": "2026 08 16 12 32 34 UTC DcGeJIGCKsn 2"
+  },
+  {
+    "src": "./images/2026-08-15_10-29-44_UTC_DcDrSkvCJEX_1.jpg",
+    "thumb": "./images/2026-08-15_10-29-44_UTC_DcDrSkvCJEX_1.jpg",
+    "caption": "2026 08 15 10 29 44 UTC DcDrSkvCJEX 1"
+  },
+  {
+    "src": "./images/2026-08-15_10-29-44_UTC_DcDrSkvCJEX_2.jpg",
+    "thumb": "./images/2026-08-15_10-29-44_UTC_DcDrSkvCJEX_2.jpg",
+    "caption": "2026 08 15 10 29 44 UTC DcDrSkvCJEX 2"
+  },
+  {
+    "src": "./images/2026-08-15_10-29-44_UTC_DcDrSkvCJEX_3.jpg",
+    "thumb": "./images/2026-08-15_10-29-44_UTC_DcDrSkvCJEX_3.jpg",
+    "caption": "2026 08 15 10 29 44 UTC DcDrSkvCJEX 3"
+  },
+  {
+    "src": "./images/2026-08-15_10-29-44_UTC_DcDrSkvCJEX_4.jpg",
+    "thumb": "./images/2026-08-15_10-29-44_UTC_DcDrSkvCJEX_4.jpg",
+    "caption": "2026 08 15 10 29 44 UTC DcDrSkvCJEX 4"
+  },
+  {
+    "src": "./images/2026-08-13_14-57-18_UTC_Db_AUhBiA41_1.jpg",
+    "thumb": "./images/2026-08-13_14-57-18_UTC_Db_AUhBiA41_1.jpg",
+    "caption": "2026 08 13 14 57 18 UTC Db AUhBiA41 1"
+  },
+  {
+    "src": "./images/2026-08-13_14-57-18_UTC_Db_AUhBiA41_2.jpg",
+    "thumb": "./images/2026-08-13_14-57-18_UTC_Db_AUhBiA41_2.jpg",
+    "caption": "2026 08 13 14 57 18 UTC Db AUhBiA41 2"
+  },
+  {
+    "src": "./images/2026-08-13_14-57-18_UTC_Db_AUhBiA41_3.jpg",
+    "thumb": "./images/2026-08-13_14-57-18_UTC_Db_AUhBiA41_3.jpg",
+    "caption": "2026 08 13 14 57 18 UTC Db AUhBiA41 3"
+  },
+  {
+    "src": "./images/2026-08-13_14-57-18_UTC_Db_AUhBiA41_4.jpg",
+    "thumb": "./images/2026-08-13_14-57-18_UTC_Db_AUhBiA41_4.jpg",
+    "caption": "2026 08 13 14 57 18 UTC Db AUhBiA41 4"
+  },
+  {
     "src": "./images/2026-08-13_14-57-18_UTC_Db_AUhBiA41_5.jpg",
     "thumb": "./images/2026-08-13_14-57-18_UTC_Db_AUhBiA41_5.jpg",
     "caption": "2026 08 13 14 57 18 UTC Db AUhBiA41 5"
