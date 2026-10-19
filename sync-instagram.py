@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 """
-Instagram Photo Sync Script (Modern HTML Relay Parser + API Fallback)
-Підтримує отримання останніх публічних постів напряму з HTML-відповіді Instagram
-(через вбудований Relay Preloader) без потреби в авторизації, а також має
-fallback на внутрішнє API за наявності IG_SESSION.
+Instagram Photo Sync Script (Full-Res GraphQL + HTML Relay Fallback)
+Завантажує публічні фото у максимальній оригінальній роздільній здатності
+(через image_versions2.candidates), підтримуючи як авторизований GraphQL-запит
+для GitHub Actions (IG_SESSION), так і анонімний HTML Relay Preloader.
 """
 
 import argparse
-import base64
 import json
 import os
-import pickle
 import re
 import sys
 import time
+import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -29,6 +28,7 @@ INSTAGRAM_USERNAME = os.getenv("INSTAGRAM_USERNAME", "kokosnapalmeros")
 IMAGES_DIR = Path("images")
 METADATA_FILE = Path("gallery-data.json")
 MAX_POSTS = 50
+DEFAULT_GRAPHQL_DOC_ID = "28858033960505345"
 
 BROWSER_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -58,24 +58,35 @@ def find_key(obj: Any, target_key: str) -> Any:
     return None
 
 
+def get_best_image_url(item: Dict[str, Any]) -> Optional[str]:
+    """
+    Повертає URL фото у максимальній роздільній здатності з image_versions2.candidates.
+    Ніколи не бере низькоякісний display_uri (640px), якщо є повнорозмірні кандидати.
+    """
+    if not isinstance(item, dict):
+        return None
+
+    img_v2 = item.get("image_versions2")
+    if isinstance(img_v2, dict):
+        candidates = img_v2.get("candidates", [])
+        if isinstance(candidates, list) and candidates:
+            # Якщо у кандидатів вказані width/height — обираємо найбільший за площею
+            with_dims = [c for c in candidates if isinstance(c, dict) and c.get("width") and c.get("height") and c.get("url")]
+            if with_dims:
+                best = max(with_dims, key=lambda c: int(c["width"]) * int(c["height"]))
+                return best["url"]
+            # Інакше беремо перший елемент (Instagram завжди кладе оригінал без ресайзу першим)
+            for c in candidates:
+                if isinstance(c, dict) and c.get("url"):
+                    return c["url"]
+
+    return item.get("display_uri") or item.get("display_url")
+
+
 def get_photo_number(path: Path) -> int:
     """Повертає номер фото з імені файлу (_1, _2, ...)."""
     match = re.search(r"_(\d+)\.[^.]+$", path.name)
     return int(match.group(1)) if match else 0
-
-
-def find_existing_files(shortcode: str) -> List[Path]:
-    """Шукає вже завантажені фото поста за shortcode."""
-    if not IMAGES_DIR.exists():
-        return []
-    valid_ext = {".jpg", ".jpeg", ".png", ".webp"}
-    files = [
-        path
-        for path in IMAGES_DIR.iterdir()
-        if path.is_file() and shortcode in path.name and path.suffix.lower() in valid_ext
-    ]
-    files.sort(key=lambda path: (get_photo_number(path), path.name))
-    return files
 
 
 def build_filename(post_dt: datetime, shortcode: str, index: int, total: int) -> str:
@@ -119,8 +130,8 @@ def fetch_post_page_details(
     default_display_uri: Optional[str] = None,
 ) -> Tuple[List[str], int, Optional[int]]:
     """
-    Завантажує сторінку поста /p/{code}/ для отримання всіх фото каруселі,
-    кількості лайків та точного timestamp (taken_at).
+    Завантажує сторінку поста /p/{code}/ для отримання всіх фото у повній якості
+    (image_versions2.candidates[0]), кількості лайків та точного timestamp.
     """
     media_urls: List[str] = []
     likes = 0
@@ -130,7 +141,7 @@ def fetch_post_page_details(
         r = session.get(f"https://www.instagram.com/p/{code}/", headers=BROWSER_HEADERS, timeout=20)
         if r.status_code == 200:
             for script in re.findall(r"<script[^>]*>(.*?)</script>", r.text, re.DOTALL):
-                if "carousel_media" in script or "xdt_shortcode_media" in script or "like_count" in script:
+                if "image_versions2" in script or "carousel_media" in script or "like_count" in script:
                     try:
                         data = json.loads(script)
                         if not likes:
@@ -147,11 +158,14 @@ def fetch_post_page_details(
                             items = find_key(data, "carousel_media")
                             if items and isinstance(items, list):
                                 for it in items:
-                                    uri = it.get("display_uri")
-                                    if not uri and "image_versions2" in it:
-                                        candidates = it["image_versions2"].get("candidates", [])
-                                        if candidates:
-                                            uri = candidates[0].get("url")
+                                    uri = get_best_image_url(it)
+                                    if uri:
+                                        media_urls.append(uri)
+                            else:
+                                # Одиночне фото
+                                single_v2 = find_key(data, "image_versions2")
+                                if isinstance(single_v2, dict):
+                                    uri = get_best_image_url({"image_versions2": single_v2})
                                     if uri:
                                         media_urls.append(uri)
                     except Exception:
@@ -165,38 +179,119 @@ def fetch_post_page_details(
     return media_urls, likes, taken_at
 
 
-def extract_timeline_from_html(session: requests.Session, username: str) -> Optional[List[Dict]]:
-    """Парсить стрічку постів безпосередньо з HTML-коду профілю Instagram."""
-    print(f"🌐 Запит до сторінки профілю https://www.instagram.com/{username}/ ...")
+def extract_timeline_via_graphql(
+    session: requests.Session,
+    username: str,
+    count: int = 12,
+) -> Optional[List[Dict]]:
+    """
+    Отримує стрічку постів через офіційний GraphQL-запит профілю (працює з IG_SESSION у CI).
+    Повертає одразу повні об'єкти постів включно з carousel_media та image_versions2.
+    """
     profile_url = f"https://www.instagram.com/{username}/"
-
     try:
         r = session.get(profile_url, headers=BROWSER_HEADERS, timeout=25)
         if r.status_code != 200:
-            print(f"⚠️ Отримано статус {r.status_code} для сторінки профілю")
+            print(f"⚠️ Статус сторінки профілю (GraphQL init): {r.status_code}")
             return None
 
-        timeline = None
+        # Якщо у відповіді вже є вбудований Relay Preloader — теж можемо використати,
+        # але якщо є токени сесії, GraphQL дає одразу всі каруселі та розміри в одному запиті
+        dtsg_m = re.search(r'"DTSGInitialData",\[\],\{"token":"([^"]+)"', r.text)
+        lsd_m = re.search(r'"LSD",\[\],\{"token":"([^"]+)"', r.text)
+        csrf_m = re.search(r'"csrf_token":"([^"]+)"', r.text)
+
+        if not (dtsg_m and lsd_m and csrf_m):
+            return None
+
+        dtsg = dtsg_m.group(1)
+        lsd = lsd_m.group(1)
+        csrf = csrf_m.group(1)
+        session.cookies["csrftoken"] = csrf
+
+        headers = {
+            "User-Agent": BROWSER_HEADERS["User-Agent"],
+            "X-IG-App-ID": "936619743392459",
+            "X-ASBD-ID": "129477",
+            "X-CSRFToken": csrf,
+            "X-FB-LSD": lsd,
+            "X-FB-Friendly-Name": "PolarisProfilePostsTabContentQuery_connection",
+            "Referer": profile_url,
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
+
+        variables = {
+            "after": None,
+            "before": None,
+            "data": {
+                "count": count,
+                "include_relationship_info": True,
+                "latest_besties_reel_media": True,
+                "latest_reel_media": True,
+            },
+            "first": count,
+            "include_multi_captions": False,
+            "last": None,
+            "username": username,
+            "__relay_internal__pv__PolarisMultiCaptionCarouselEnabledrelayprovider": False,
+            "__relay_internal__pv__PolarisShortDramaEnabledrelayprovider": False,
+            "__relay_internal__pv__PolarisThreadsStyleCommentsEnabledrelayprovider": False,
+            "__relay_internal__pv__PolarisReelsRecoDebugOverlayEnabledrelayprovider": False,
+        }
+
+        resp = session.post(
+            "https://www.instagram.com/graphql/query",
+            headers=headers,
+            data={
+                "fb_dtsg": dtsg,
+                "lsd": lsd,
+                "doc_id": DEFAULT_GRAPHQL_DOC_ID,
+                "variables": json.dumps(variables),
+            },
+            timeout=25,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            conn = data.get("data", {}).get("xdt_api__v1__feed__user_timeline_graphql_connection")
+            if conn and "edges" in conn:
+                edges = conn["edges"]
+                print(f"✅ Отримано {len(edges)} постів у повній якості через GraphQL API.")
+                return edges
+    except Exception as e:
+        print(f"⚠️ GraphQL запит не вдався: {e}")
+
+    return None
+
+
+def extract_timeline_from_html_anonymous(username: str) -> Tuple[Optional[List[Dict]], requests.Session]:
+    """
+    Fallback: парсить стрічку постів із анонімного HTML-коду профілю Instagram (без куків).
+    """
+    print(f"🌐 Fallback: анонімний запит до https://www.instagram.com/{username}/ ...")
+    anon_session = requests.Session(impersonate="chrome120")
+    profile_url = f"https://www.instagram.com/{username}/"
+
+    try:
+        r = anon_session.get(profile_url, headers=BROWSER_HEADERS, timeout=25)
+        if r.status_code != 200:
+            print(f"⚠️ Отримано статус {r.status_code} для анонімної сторінки профілю")
+            return None, anon_session
+
         for script in re.findall(r"<script[^>]*>(.*?)</script>", r.text, re.DOTALL):
             if "polaris_ordered_timeline_connection" in script:
                 try:
                     data = json.loads(script)
                     timeline = find_key(data, "polaris_ordered_timeline_connection")
-                    if timeline:
-                        break
+                    if timeline and "edges" in timeline:
+                        edges = timeline["edges"]
+                        print(f"✅ Знайдено {len(edges)} постів у стрічці профілю (HTML Relay Preloader).")
+                        return edges, anon_session
                 except Exception:
                     continue
-
-        if not timeline:
-            print("⚠️ Не знайдено polaris_ordered_timeline_connection в HTML скриптах.")
-            return None
-
-        edges = timeline.get("edges", [])
-        print(f"✅ Знайдено {len(edges)} постів у стрічці профілю (HTML Relay Preloader).")
-        return edges
     except Exception as e:
         print(f"⚠️ Помилка отримання HTML профілю: {e}")
-        return None
+
+    return None, anon_session
 
 
 def download_instagram_photos(
@@ -204,28 +299,34 @@ def download_instagram_photos(
     limit: int = MAX_POSTS,
     test_mode: bool = False,
 ) -> bool:
-    """Синхронізує публічні пости через сучасний HTML Relay парсер."""
+    """Синхронізує публічні пости у максимальній роздільній здатності."""
     print(f"🔄 Синхронізація фото для @{username}...")
     IMAGES_DIR.mkdir(exist_ok=True)
 
-    # 1. Завантажуємо існуючу історію постів
     existing_posts = load_existing_metadata()
     posts_dict = {p["shortcode"]: p for p in existing_posts if "shortcode" in p}
     print(f"📁 Завантажено {len(posts_dict)} існуючих постів з архіву.")
 
-    cookies = {}
+    edges = None
+    active_session = None
+
+    # 1. Якщо є IG_SESSION — пробуємо повноцінний GraphQL запит
     session_val = os.getenv("IG_SESSION", "").strip()
     if session_val:
-        cookies["sessionid"] = session_val
-        import urllib.parse
+        cookies = {"sessionid": session_val}
         raw_sid = urllib.parse.unquote(session_val)
         if ":" in raw_sid:
             cookies["ds_user_id"] = raw_sid.split(":")[0]
-    session = requests.Session(impersonate="chrome120", cookies=cookies if cookies else None)
+        auth_session = requests.Session(impersonate="chrome120", cookies=cookies)
+        edges = extract_timeline_via_graphql(auth_session, username, count=min(limit, 24))
+        if edges:
+            active_session = auth_session
 
-    # 2. Отримуємо останні пости з профілю
-    edges = extract_timeline_from_html(session, username)
+    # 2. Якщо GraphQL не спрацював або IG_SESSION немає — використовуємо чисту анонімну сесію
     if not edges:
+        edges, active_session = extract_timeline_from_html_anonymous(username)
+
+    if not edges or not active_session:
         print(f"❌ Не вдалося отримати пости для @{username}.")
         return False
 
@@ -259,30 +360,47 @@ def download_instagram_photos(
         elif isinstance(c_obj, str):
             caption = c_obj
 
-        default_display_uri = node.get("display_uri")
-        is_carousel = (
-            node.get("__typename") == "XIGPolarisCarouselMedia"
-            or node.get("carousel_media_count", 1) > 1
-        )
-
         permalink = f"https://www.instagram.com/p/{shortcode}/"
 
-        # Перевіряємо, чи цей пост уже повністю завантажено в metadata
+        # Перевіряємо, чи цей пост уже завантажено і всі його файли існують на диску
         if shortcode in posts_dict and posts_dict[shortcode].get("images"):
             existing_imgs = posts_dict[shortcode]["images"]
-            # Перевіряємо, чи файли існують на диску (якщо images присутня)
-            if not IMAGES_DIR.exists() or all((IMAGES_DIR / f).exists() for f in existing_imgs):
+            if test_mode or (IMAGES_DIR.exists() and all((IMAGES_DIR / f).exists() for f in existing_imgs)):
                 print(f"⏭️ Вже є в архіві: {shortcode} ({len(existing_imgs)} фото)")
                 processed += 1
                 continue
 
-        print(f"🔍 Опрацювання нового поста: {shortcode} ...")
-        # Отримуємо деталі поста та всі зображення каруселі
-        media_urls, likes, taken_at = fetch_post_page_details(
-            session=session,
-            code=shortcode,
-            default_display_uri=default_display_uri,
-        )
+        print(f"🔍 Опрацювання поста: {shortcode} ...")
+
+        # Перевіряємо, чи вже є повні дані image_versions2 безпосередньо у GraphQL-вузлі
+        media_urls: List[str] = []
+        likes = int(node.get("like_count") or 0)
+        taken_at = node.get("taken_at")
+
+        if node.get("carousel_media") and isinstance(node["carousel_media"], list):
+            for item in node["carousel_media"]:
+                if item.get("media_type") == 2:
+                    continue
+                u = get_best_image_url(item)
+                if u:
+                    media_urls.append(u)
+        elif node.get("image_versions2"):
+            u = get_best_image_url(node)
+            if u:
+                media_urls.append(u)
+
+        # Якщо у вузлі немає image_versions2 (наприклад, анонімний HTML preloader),
+        # завантажуємо сторінку поста /p/{shortcode}/ для отримання оригіналів
+        if not media_urls:
+            media_urls, page_likes, page_taken_at = fetch_post_page_details(
+                session=active_session,
+                code=shortcode,
+                default_display_uri=get_best_image_url(node),
+            )
+            if not likes and page_likes:
+                likes = page_likes
+            if not taken_at and page_taken_at:
+                taken_at = page_taken_at
 
         if not media_urls:
             print(f"  ❌ Не вдалося отримати URL фото для {shortcode}")
@@ -290,7 +408,7 @@ def download_instagram_photos(
 
         # Визначаємо дату
         if taken_at:
-            post_dt = datetime.fromtimestamp(taken_at, timezone.utc)
+            post_dt = datetime.fromtimestamp(int(taken_at), timezone.utc)
         else:
             pk = int(node.get("pk", 0))
             if pk:
@@ -306,7 +424,7 @@ def download_instagram_photos(
 
             if not test_mode and not filepath.exists():
                 try:
-                    img_resp = session.get(
+                    img_resp = active_session.get(
                         media_url,
                         timeout=30,
                         headers={"Referer": "https://www.instagram.com/"},
@@ -327,9 +445,9 @@ def download_instagram_photos(
 
         new_downloaded += len(filenames)
         if len(filenames) > 1:
-            print(f"  ✅ Завантажено карусель ({len(filenames)} фото): {shortcode}")
+            print(f"  ✅ Завантажено карусель у повній якості ({len(filenames)} фото): {shortcode}")
         else:
-            print(f"  ✅ Завантажено фото: {filenames[0]}")
+            print(f"  ✅ Завантажено фото у повній якості: {filenames[0]}")
 
         post_data = {
             "filename": filenames[0],
@@ -347,19 +465,18 @@ def download_instagram_photos(
         processed += 1
         time.sleep(1)
 
-    # Формуємо підсумковий список постів, відсортований за датою DESC
     final_posts = list(posts_dict.values())
     final_posts.sort(key=lambda x: x.get("date", ""), reverse=True)
 
     save_metadata(username=username, posts_data=final_posts)
     print(
-        f"\n✨ Синхронізацію успішно завершено! Завантажено нових файлів: {new_downloaded}. Загалом в архіві: {len(final_posts)} постів."
+        f"\n✨ Синхронізацію успішно завершено! Завантажено у повній якості: {new_downloaded}. Загалом в архіві: {len(final_posts)} постів."
     )
     return True
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Instagram sync via modern HTML Relay parser")
+    parser = argparse.ArgumentParser(description="Instagram full-res sync")
     parser.add_argument("--test", action="store_true", help="Тільки перевірка метаданих")
     parser.add_argument("--limit", type=int, default=MAX_POSTS, help="Макс. кількість постів")
     parser.add_argument("--username", default=INSTAGRAM_USERNAME, help="Instagram username")
@@ -372,10 +489,6 @@ def parse_args() -> argparse.Namespace:
 
 if __name__ == "__main__":
     args = parse_args()
-    if getattr(args, "create_session", False):
-        print("ℹ️ Авторизація більше не потрібна. Парсер працює автоматично.")
-        sys.exit(0)
-
     success = download_instagram_photos(
         username=args.username,
         limit=args.limit,
