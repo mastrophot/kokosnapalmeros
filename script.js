@@ -1,23 +1,145 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // Ініціалізація FancyBox
-    Fancybox.bind('[data-fancybox="gallery"]', {
-        animated: true,
-        showClass: "fancybox-fadeIn",
-        hideClass: "fancybox-fadeOut",
-        dragToClose: false,
-        Image: {
-            zoom: true,
-        },
-        toolbar: {
-            display: {
-                left: [],
-                middle: [],
-                right: ['close'],
-            },
-        },
+    const MONTHS_UK = [
+        'січ', 'лют', 'бер', 'кві', 'тра', 'чер',
+        'лип', 'сер', 'вер', 'жов', 'лис', 'гру'
+    ];
+
+    const gallery = document.querySelector('.gallery');
+    const backToTopBtn = document.getElementById('backToTop');
+    const aspectBtns = document.querySelectorAll('[data-set-aspect]');
+    const densityBtns = document.querySelectorAll('[data-set-density]');
+    const yearPills = document.querySelectorAll('.year-pill');
+
+    // 1. Відновлення налаштувань вигляду (4:5 чи 1:1, стандартна чи щільна сітка)
+    const savedAspect = localStorage.getItem('kokos_aspect') || 'portrait';
+    const savedDensity = localStorage.getItem('kokos_density') || 'comfy';
+
+    const applyViewSettings = (aspect, density) => {
+        if (aspect === 'square') {
+            document.body.setAttribute('data-aspect', 'square');
+        } else {
+            document.body.removeAttribute('data-aspect');
+        }
+        if (density === 'compact') {
+            document.body.setAttribute('data-density', 'compact');
+        } else {
+            document.body.removeAttribute('data-density');
+        }
+        aspectBtns.forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.setAspect === aspect);
+        });
+        densityBtns.forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.setDensity === density);
+        });
+    };
+
+    applyViewSettings(savedAspect, savedDensity);
+
+    aspectBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const val = btn.dataset.setAspect;
+            localStorage.setItem('kokos_aspect', val);
+            applyViewSettings(val, localStorage.getItem('kokos_density') || 'comfy');
+        });
     });
 
-    // Легкий IntersectionObserver без інлайнових transform та тисяч setTimeout
+    densityBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const val = btn.dataset.setDensity;
+            localStorage.setItem('kokos_density', val);
+            applyViewSettings(localStorage.getItem('kokos_aspect') || 'portrait', val);
+        });
+    });
+
+    // 2. Ініціалізація Fancybox 5 (відкриває 100% оригінал з href="./images/...")
+    if (window.Fancybox) {
+        Fancybox.bind('[data-fancybox="gallery"]', {
+            animated: true,
+            showClass: 'fancybox-fadeIn',
+            hideClass: 'fancybox-fadeOut',
+            dragToClose: true,
+             compact: false,
+            Images: {
+                zoom: true,
+                Panzoom: {
+                    maxScale: 3.5,
+                },
+            },
+            Thumbs: {
+                type: 'modern',
+                autoStart: false,
+            },
+            Toolbar: {
+                display: {
+                    left: ['infobar'],
+                    middle: [],
+                    right: ['iterateZoom', 'thumbs', 'fullscreen', 'close'],
+                },
+            },
+        });
+    }
+
+    // 3. Допоміжні функції парсингу імені файлу та метаданих поста
+    const parseEntry = (rawEntry) => {
+        if (typeof rawEntry !== 'string') {
+            const filename = rawEntry.src.replace('./images/', '');
+            return {
+                filename,
+                fullSrc: rawEntry.src,
+                thumbSrc: rawEntry.thumb || rawEntry.src,
+                year: filename.slice(0, 4),
+            };
+        }
+        const hasThumb = rawEntry.startsWith('*');
+        const filename = hasThumb ? rawEntry.slice(1) : rawEntry;
+        return {
+            filename,
+            fullSrc: `./images/${filename}`,
+            thumbSrc: hasThumb ? `./thumbs/${filename}` : `./images/${filename}`,
+            year: filename.slice(0, 4),
+        };
+    };
+
+    const formatReadableDate = (filename) => {
+        const m = filename.match(/^(\d{4})[-_](\d{2})[-_](\d{2})/);
+        if (!m) return '';
+        const year = m[1];
+        const monthIdx = parseInt(m[2], 10) - 1;
+        const day = parseInt(m[3], 10);
+        const monthName = MONTHS_UK[monthIdx] || m[2];
+        return `${day} ${monthName} ${year}`;
+    };
+
+    const extractShortcode = (filename) => {
+        const m = filename.match(/^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_UTC_([A-Za-z0-9_-]+?)(?:_\d+)?\.jpg$/i);
+        return m ? m[1] : null;
+    };
+
+    const buildCaptionHtml = (filename, dateLabel) => {
+        const code = extractShortcode(filename);
+        const postsMeta = window.GALLERY_POSTS || {};
+        const post = code && postsMeta[code] ? postsMeta[code] : null;
+        const parts = [];
+        if (post && post.c) {
+            const safeText = post.c
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/\n/g, '<br>');
+            parts.push(`<div>${safeText}</div>`);
+        }
+        const metaLine = [];
+        if (dateLabel) metaLine.push(`<span>${dateLabel}</span>`);
+        if (code) {
+            metaLine.push(`<a href="https://www.instagram.com/p/${code}/" target="_blank" rel="noopener">Instagram ↗</a>`);
+        }
+        if (metaLine.length > 0) {
+            parts.push(`<div style="margin-top:4px;font-size:0.8rem;color:#a1a1aa;">${metaLine.join(' · ')}</div>`);
+        }
+        return parts.join('');
+    };
+
+    // 4. Плавна поява карток при скролі
     const fadeObserver = new IntersectionObserver((entries, observer) => {
         entries.forEach(entry => {
             if (entry.isIntersecting) {
@@ -27,70 +149,101 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }, {
         threshold: 0,
-        rootMargin: '0px 0px 80px 0px'
+        rootMargin: '0px 0px 100px 0px',
     });
 
-    const setupFadeAnimation = (elements) => {
-        elements.forEach(item => {
-            item.classList.add('fade-init');
-            fadeObserver.observe(item);
-        });
+    // 5. Нескінченний скрол та миттєва фільтрація за роками
+    const allRawItems = window.GALLERY_ALL || window.GALLERY_ITEMS || [];
+    const allParsed = allRawItems.map(parseEntry);
+
+    let activeYear = 'all';
+    let filteredList = allParsed;
+    // Якщо в DOM вже є стартові картки (18 шт.), починаємо довантажувати з 18-го індексу
+    const initialDomCount = gallery ? gallery.querySelectorAll('.gallery-item-wrapper').length : 0;
+    let currentIndex = initialDomCount;
+    const BATCH_SIZE = 24;
+
+    const createCardElement = (entry, eager = false) => {
+        const dateLabel = formatReadableDate(entry.filename);
+        const captionHtml = buildCaptionHtml(entry.filename, dateLabel);
+
+        const link = document.createElement('a');
+        link.href = entry.fullSrc;
+        link.dataset.fancybox = 'gallery';
+        if (captionHtml) {
+            link.dataset.caption = captionHtml;
+        }
+        link.dataset.year = entry.year;
+        link.className = eager ? 'gallery-item-wrapper' : 'gallery-item-wrapper fade-init';
+
+        const img = document.createElement('img');
+        img.src = entry.thumbSrc;
+        img.alt = dateLabel || entry.filename;
+        img.className = 'gallery-item';
+        img.decoding = 'async';
+        if (eager) {
+            img.fetchPriority = 'high';
+        } else {
+            img.loading = 'lazy';
+        }
+
+        const overlay = document.createElement('div');
+        overlay.className = 'card-overlay';
+        overlay.innerHTML = `<span class="card-date">${dateLabel}</span><span class="card-zoom-icon"><i class="fas fa-expand-alt"></i></span>`;
+
+        link.appendChild(img);
+        link.appendChild(overlay);
+        return link;
     };
 
-    // Infinite Scroll Implementation
-    const gallery = document.querySelector('.gallery');
+    const loadMorePhotos = () => {
+        if (!gallery || currentIndex >= filteredList.length) return;
 
-    if (window.GALLERY_ITEMS && window.GALLERY_ITEMS.length > 0) {
-        let currentIndex = 0;
-        const BATCH_SIZE = 12;
+        const fragment = document.createDocumentFragment();
+        const nextBatch = filteredList.slice(currentIndex, currentIndex + BATCH_SIZE);
+        const toObserve = [];
 
-        const loadMorePhotos = () => {
-            if (currentIndex >= window.GALLERY_ITEMS.length) return;
-
-            const fragment = document.createDocumentFragment();
-            const nextBatch = window.GALLERY_ITEMS.slice(currentIndex, currentIndex + BATCH_SIZE);
-            const newElements = [];
-
-            nextBatch.forEach(item => {
-                const isString = typeof item === 'string';
-                const src = isString ? `./images/${item}` : item.src;
-                const alt = isString
-                    ? item.replace(/\.(jpg|jpeg|png)$/i, '').replace(/[_-]/g, ' ')
-                    : (item.caption || '');
-
-                const link = document.createElement('a');
-                link.href = src;
-                link.dataset.fancybox = "gallery";
-                link.className = "gallery-item-wrapper fade-init";
-
-                const img = document.createElement('img');
-                img.src = src;
-                img.alt = alt;
-                img.className = "gallery-item";
-                img.loading = "lazy";
-                img.decoding = "async";
-
-                link.appendChild(img);
-                fragment.appendChild(link);
-                newElements.push(link);
-            });
-
-            gallery.appendChild(fragment);
-            newElements.forEach(el => fadeObserver.observe(el));
-
-            currentIndex += BATCH_SIZE;
-
-            if (currentIndex >= window.GALLERY_ITEMS.length) {
-                if (scrollObserver) scrollObserver.disconnect();
-                const sentinel = document.querySelector('.scroll-sentinel');
-                if (sentinel) sentinel.remove();
+        nextBatch.forEach((entry, idx) => {
+            const isEager = currentIndex === 0 && idx < 6;
+            const card = createCardElement(entry, isEager);
+            fragment.appendChild(card);
+            if (!isEager) {
+                toObserve.push(card);
             }
-        };
+        });
 
-        // Create sentinel for scrolling
+        gallery.appendChild(fragment);
+        toObserve.forEach(el => fadeObserver.observe(el));
+        currentIndex += BATCH_SIZE;
+    };
+
+    // Фільтрація за роками
+    if (yearPills.length > 0 && allParsed.length > 0) {
+        yearPills.forEach(pill => {
+            pill.addEventListener('click', () => {
+                const year = pill.dataset.year || 'all';
+                if (year === activeYear) return;
+
+                activeYear = year;
+                yearPills.forEach(p => p.classList.toggle('active', p.dataset.year === year));
+
+                filteredList = year === 'all'
+                    ? allParsed
+                    : allParsed.filter(item => item.year === year);
+
+                gallery.innerHTML = '';
+                currentIndex = 0;
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                loadMorePhotos();
+            });
+        });
+    }
+
+    // Sentinel для автоматичного довантаження при скролі
+    if (gallery && allParsed.length > 0) {
         const sentinel = document.createElement('div');
         sentinel.className = 'scroll-sentinel';
-        sentinel.style.cssText = 'width: 100%; height: 50px; clear: both;';
+        sentinel.style.cssText = 'width: 100%; height: 40px;';
         gallery.after(sentinel);
 
         const scrollObserver = new IntersectionObserver((entries) => {
@@ -98,10 +251,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 loadMorePhotos();
             }
         }, {
-            rootMargin: '500px',
-            threshold: 0
+            rootMargin: '600px 0px',
+            threshold: 0,
         });
 
         scrollObserver.observe(sentinel);
+    }
+
+    // 6. Кнопка «Нагору»
+    if (backToTopBtn) {
+        window.addEventListener('scroll', () => {
+            backToTopBtn.classList.toggle('visible', window.scrollY > 700);
+        }, { passive: true });
+
+        backToTopBtn.addEventListener('click', () => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
     }
 });

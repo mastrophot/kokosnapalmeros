@@ -26,6 +26,7 @@ except ImportError:
 # Конфігурація
 INSTAGRAM_USERNAME = os.getenv("INSTAGRAM_USERNAME", "kokosnapalmeros")
 IMAGES_DIR = Path("images")
+THUMBS_DIR = Path("thumbs")
 METADATA_FILE = Path("gallery-data.json")
 MAX_POSTS = 50
 DEFAULT_GRAPHQL_DOC_ID = "28858033960505345"
@@ -61,7 +62,7 @@ def find_key(obj: Any, target_key: str) -> Any:
 def strip_gainmap_jpeg(data: bytes) -> bytes:
     """
     Вирізає другий JPEG-потік (Ultra-HDR GainMap / MPF) та hdrgm XMP-метадані,
-    залишаючи чистий однопотоковий SDR JPEG для швидкого рендерингу в браузері без GPU-лагів.
+    залишаючи чистий однопотоковий SDR JPEG у 100% оригінальній роздільній здатності.
     """
     if not data.startswith(b"\xff\xd8"):
         return data
@@ -111,9 +112,8 @@ def strip_gainmap_jpeg(data: bytes) -> bytes:
 
 def get_best_image_url(item: Dict[str, Any]) -> Optional[str]:
     """
-    Повертає оптимальний Full-HD (1080px, напр. 1080x1440 / 1080x1080) URL фото без кропу
-    з image_versions2.candidates. Уникає як мильних 640px прев'ю (display_uri), так і
-    важких 12-мегапіксельних (3072x4096) сирих зображень, що перевантажують браузер.
+    Повертає URL фото у МАКСИМАЛЬНІЙ оригінальній роздільній здатності (напр. 3072x4096 / 2268x3024)
+    з image_versions2.candidates без кропу.
     """
     if not isinstance(item, dict):
         return None
@@ -123,34 +123,47 @@ def get_best_image_url(item: Dict[str, Any]) -> Optional[str]:
         candidates = img_v2.get("candidates", [])
         if isinstance(candidates, list) and candidates:
             valid = [c for c in candidates if isinstance(c, dict) and c.get("url")]
-            # Відсіюємо квадратні кропи неквадратних фото (stp=c0.512...)
             non_cropped = [
                 c for c in valid if not re.search(r"stp=c\d+\.", c["url"])
             ] or valid
 
-            # 1. Якщо є розміри (GraphQL): шукаємо стандартний 1080px по ширині (1080x1440 / 1080x1080)
             with_dims = [c for c in non_cropped if c.get("width") and c.get("height")]
             if with_dims:
-                exact_1080 = [c for c in with_dims if int(c["width"]) == 1080]
-                if exact_1080:
-                    return max(exact_1080, key=lambda c: int(c["height"]))["url"]
-                # Або найбільший кандидат, що не перевищує 1440px по довгій стороні
-                reasonable = [
-                    c for c in with_dims if max(int(c["width"]), int(c["height"])) <= 1440
-                ]
-                if reasonable:
-                    return max(reasonable, key=lambda c: int(c["width"]) * int(c["height"]))["url"]
                 return max(with_dims, key=lambda c: int(c["width"]) * int(c["height"]))["url"]
 
-            # 2. Якщо розмірів немає (HTML Relay): шукаємо некропнутий p1080x1080 або s1080x1080
-            for c in non_cropped:
-                if "1080x1080" in c["url"]:
-                    return c["url"]
-
-            # 3. Fallback — перший некропнутий кандидат
             return non_cropped[0]["url"]
 
     return item.get("display_uri") or item.get("display_url")
+
+
+def get_thumb_image_url(item: Dict[str, Any]) -> Optional[str]:
+    """
+    Повертає легке прев'ю (640px–720px, ~35-60 КБ) для швидкої сітки галереї.
+    """
+    if not isinstance(item, dict):
+        return None
+
+    img_v2 = item.get("image_versions2")
+    if isinstance(img_v2, dict):
+        candidates = img_v2.get("candidates", [])
+        if isinstance(candidates, list) and candidates:
+            valid = [c for c in candidates if isinstance(c, dict) and c.get("url")]
+            non_cropped = [
+                c for c in valid if not re.search(r"stp=c\d+\.", c["url"])
+            ] or valid
+
+            with_dims = [c for c in non_cropped if c.get("width") and c.get("height")]
+            if with_dims:
+                # Шукаємо кандидата близько 640-750px по ширині
+                medium = [c for c in with_dims if 480 <= int(c["width"]) <= 750]
+                if medium:
+                    return max(medium, key=lambda c: int(c["width"]))["url"]
+
+            for c in non_cropped:
+                if "640x640" in c["url"] or "720x720" in c["url"]:
+                    return c["url"]
+
+    return item.get("display_uri") or item.get("display_url") or get_best_image_url(item)
 
 
 def get_photo_number(path: Path) -> int:
@@ -198,12 +211,13 @@ def fetch_post_page_details(
     session: requests.Session,
     code: str,
     default_display_uri: Optional[str] = None,
-) -> Tuple[List[str], int, Optional[int]]:
+) -> Tuple[List[str], List[str], int, Optional[int]]:
     """
     Завантажує сторінку поста /p/{code}/ для отримання всіх фото у повній якості
-    (image_versions2.candidates[0]), кількості лайків та точного timestamp.
+    (image_versions2.candidates[0]), легких прев'ю (640px), кількості лайків та точного timestamp.
     """
     media_urls: List[str] = []
+    thumb_urls: List[str] = []
     likes = 0
     taken_at = None
 
@@ -231,13 +245,16 @@ def fetch_post_page_details(
                                     uri = get_best_image_url(it)
                                     if uri:
                                         media_urls.append(uri)
+                                        thumb_urls.append(get_thumb_image_url(it) or uri)
                             else:
                                 # Одиночне фото
                                 single_v2 = find_key(data, "image_versions2")
                                 if isinstance(single_v2, dict):
-                                    uri = get_best_image_url({"image_versions2": single_v2})
+                                    wrapped = {"image_versions2": single_v2}
+                                    uri = get_best_image_url(wrapped)
                                     if uri:
                                         media_urls.append(uri)
+                                        thumb_urls.append(get_thumb_image_url(wrapped) or uri)
                     except Exception:
                         continue
     except Exception as e:
@@ -245,8 +262,9 @@ def fetch_post_page_details(
 
     if not media_urls and default_display_uri:
         media_urls = [default_display_uri]
+        thumb_urls = [default_display_uri]
 
-    return media_urls, likes, taken_at
+    return media_urls, thumb_urls, likes, taken_at
 
 
 def extract_timeline_via_graphql(
@@ -265,8 +283,6 @@ def extract_timeline_via_graphql(
             print(f"⚠️ Статус сторінки профілю (GraphQL init): {r.status_code}")
             return None
 
-        # Якщо у відповіді вже є вбудований Relay Preloader — теж можемо використати,
-        # але якщо є токени сесії, GraphQL дає одразу всі каруселі та розміри в одному запиті
         dtsg_m = re.search(r'"DTSGInitialData",\[\],\{"token":"([^"]+)"', r.text)
         lsd_m = re.search(r'"LSD",\[\],\{"token":"([^"]+)"', r.text)
         csrf_m = re.search(r'"csrf_token":"([^"]+)"', r.text)
@@ -369,9 +385,10 @@ def download_instagram_photos(
     limit: int = MAX_POSTS,
     test_mode: bool = False,
 ) -> bool:
-    """Синхронізує публічні пости у максимальній роздільній здатності."""
+    """Синхронізує публічні пости у максимальній роздільній здатності + легкі прев'ю в thumbs/."""
     print(f"🔄 Синхронізація фото для @{username}...")
     IMAGES_DIR.mkdir(exist_ok=True)
+    THUMBS_DIR.mkdir(exist_ok=True)
 
     existing_posts = load_existing_metadata()
     posts_dict = {p["shortcode"]: p for p in existing_posts if "shortcode" in p}
@@ -435,15 +452,18 @@ def download_instagram_photos(
         # Перевіряємо, чи цей пост уже завантажено і всі його файли існують на диску
         if shortcode in posts_dict and posts_dict[shortcode].get("images"):
             existing_imgs = posts_dict[shortcode]["images"]
-            if test_mode or (IMAGES_DIR.exists() and all((IMAGES_DIR / f).exists() for f in existing_imgs)):
+            if test_mode or (
+                IMAGES_DIR.exists()
+                and all((IMAGES_DIR / f).exists() and (THUMBS_DIR / f).exists() for f in existing_imgs)
+            ):
                 print(f"⏭️ Вже є в архіві: {shortcode} ({len(existing_imgs)} фото)")
                 processed += 1
                 continue
 
         print(f"🔍 Опрацювання поста: {shortcode} ...")
 
-        # Перевіряємо, чи вже є повні дані image_versions2 безпосередньо у GraphQL-вузлі
         media_urls: List[str] = []
+        thumb_urls: List[str] = []
         likes = int(node.get("like_count") or 0)
         taken_at = node.get("taken_at")
 
@@ -454,15 +474,15 @@ def download_instagram_photos(
                 u = get_best_image_url(item)
                 if u:
                     media_urls.append(u)
+                    thumb_urls.append(get_thumb_image_url(item) or u)
         elif node.get("image_versions2"):
             u = get_best_image_url(node)
             if u:
                 media_urls.append(u)
+                thumb_urls.append(get_thumb_image_url(node) or u)
 
-        # Якщо у вузлі немає image_versions2 (наприклад, анонімний HTML preloader),
-        # завантажуємо сторінку поста /p/{shortcode}/ для отримання оригіналів
         if not media_urls:
-            media_urls, page_likes, page_taken_at = fetch_post_page_details(
+            media_urls, thumb_urls, page_likes, page_taken_at = fetch_post_page_details(
                 session=active_session,
                 code=shortcode,
                 default_display_uri=get_best_image_url(node),
@@ -491,18 +511,32 @@ def download_instagram_photos(
         for index, media_url in enumerate(media_urls):
             filename = build_filename(post_dt, shortcode, index, len(media_urls))
             filepath = IMAGES_DIR / filename
+            thumbpath = THUMBS_DIR / filename
+            thumb_url = thumb_urls[index] if index < len(thumb_urls) else media_url
 
-            if not test_mode and not filepath.exists():
+            if not test_mode:
                 try:
-                    img_resp = active_session.get(
-                        media_url,
-                        timeout=30,
-                        headers={"Referer": "https://www.instagram.com/"},
-                    )
-                    if img_resp.status_code == 200:
-                        filepath.write_bytes(strip_gainmap_jpeg(img_resp.content))
-                    else:
-                        print(f"  ❌ Помилка завантаження фото {img_resp.status_code} для {filename}")
+                    if not filepath.exists():
+                        img_resp = active_session.get(
+                            media_url,
+                            timeout=30,
+                            headers={"Referer": "https://www.instagram.com/"},
+                        )
+                        if img_resp.status_code == 200:
+                            filepath.write_bytes(strip_gainmap_jpeg(img_resp.content))
+                        else:
+                            print(f"  ❌ Помилка завантаження фото {img_resp.status_code} для {filename}")
+
+                    if not thumbpath.exists():
+                        t_resp = active_session.get(
+                            thumb_url,
+                            timeout=25,
+                            headers={"Referer": "https://www.instagram.com/"},
+                        )
+                        if t_resp.status_code == 200:
+                            thumbpath.write_bytes(strip_gainmap_jpeg(t_resp.content))
+                        elif filepath.exists():
+                            thumbpath.write_bytes(filepath.read_bytes())
                 except Exception as error:
                     print(f"  ❌ Помилка скачування {filename}: {error}")
                     filenames = []
