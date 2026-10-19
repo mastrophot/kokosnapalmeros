@@ -66,10 +66,10 @@ body::before {
     position: fixed;
     inset: 0;
     background-image:
-        linear-gradient(180deg, rgba(9, 9, 11, 0.50) 0%, rgba(9, 9, 11, 0.70) 100%),
-        url('./images/bg-sniezka.jpg');
+        linear-gradient(180deg, rgba(9, 9, 11, 0.52) 0%, rgba(9, 9, 11, 0.72) 100%),
+        url('./images/background.jpg');
     background-size: cover;
-    background-position: center 48%;
+    background-position: center;
     background-repeat: no-repeat;
     z-index: -1;
     pointer-events: none;
