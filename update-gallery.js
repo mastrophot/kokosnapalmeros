@@ -131,12 +131,15 @@ function updateHTML(galleryData) {
         const deferredPhotos = sortedPhotos.slice(INITIAL_BATCH_SIZE);
 
         let addedCount = 0;
-        initialPhotos.forEach(filename => {
+        initialPhotos.forEach((filename, idx) => {
             const imagePath = `./images/${filename}`;
             const caption = filename.replace(/\.(jpg|jpeg|png)$/i, '').replace(/[_-]/g, ' ');
+            const loadAttrs = idx < 6
+                ? 'fetchpriority="high" decoding="async"'
+                : 'loading="lazy" decoding="async"';
             gallery.append(`
                 <a href="${imagePath}" data-fancybox="gallery" class="gallery-item-wrapper">
-                    <img src="${imagePath}" alt="${caption}" class="gallery-item" loading="lazy">
+                    <img src="${imagePath}" alt="${caption}" class="gallery-item" ${loadAttrs}>
                 </a>`);
             addedCount++;
         });
@@ -144,21 +147,17 @@ function updateHTML(galleryData) {
         console.log(`✅ HTML оновлено: ${addedCount} фото в DOM`);
 
         if (deferredPhotos.length > 0) {
-            const galleryItems = deferredPhotos.map(filename => ({
-                src: `./images/${filename}`,
-                thumb: `./images/${filename}`,
-                caption: filename.replace(/\.(jpg|jpeg|png)$/i, '').replace(/[_-]/g, ' ')
-            }));
             fs.writeFileSync('gallery-items.js',
-                `window.GALLERY_ITEMS = ${JSON.stringify(galleryItems, null, 2)};`, 'utf-8');
+                `window.GALLERY_ITEMS = ${JSON.stringify(deferredPhotos)};\n`, 'utf-8');
             console.log(`📦 gallery-items.js: ${deferredPhotos.length} додаткових фото`);
         } else {
-            fs.writeFileSync('gallery-items.js', 'window.GALLERY_ITEMS = [];', 'utf-8');
+            fs.writeFileSync('gallery-items.js', 'window.GALLERY_ITEMS = [];\n', 'utf-8');
         }
 
         console.log(`📊 Всього в галереї: ${sortedPhotos.length} фото`);
 
-        gallery.append(`\n    <!-- Останнє оновлення: ${new Date().toLocaleString('uk-UA')} -->`);
+        const stamp = (galleryData && galleryData.last_updated) ? galleryData.last_updated : 'synced';
+        gallery.append(`\n    <!-- Останнє оновлення: ${stamp} -->`);
         fs.writeFileSync(HTML_FILE, $.html(), 'utf-8');
         console.log(`\n✨ Галерею оновлено!`);
 

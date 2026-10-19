@@ -17,50 +17,29 @@ document.addEventListener('DOMContentLoaded', () => {
         },
     });
 
-    // Observer for fade-in animation
-    const fadeObserverOptions = {
-        threshold: 0,
-        rootMargin: '0px 0px 50px 0px' // Trigger slightly before entering viewport
-    };
-
+    // Легкий IntersectionObserver без інлайнових transform та тисяч setTimeout
     const fadeObserver = new IntersectionObserver((entries, observer) => {
         entries.forEach(entry => {
             if (entry.isIntersecting) {
-                entry.target.style.opacity = '1';
-                entry.target.style.transform = 'translateY(0)';
+                entry.target.classList.remove('fade-init');
                 observer.unobserve(entry.target);
             }
         });
-    }, fadeObserverOptions);
+    }, {
+        threshold: 0,
+        rootMargin: '0px 0px 80px 0px'
+    });
 
-    // Function to setup fade animation for new items
     const setupFadeAnimation = (elements) => {
         elements.forEach(item => {
-            // Check if already visible (e.g. from previous load)
-            if (item.style.opacity === '1') return;
-            
-            item.style.opacity = '0';
-            item.style.transform = 'translateY(30px)'; // Reduced for smoother feel
-            item.style.transition = 'opacity 0.8s ease-out, transform 0.8s ease-out';
+            item.classList.add('fade-init');
             fadeObserver.observe(item);
-            
-            // Fallback: Show after 2 seconds if observer fails
-            setTimeout(() => {
-                if (item.style.opacity === '0') {
-                    item.style.opacity = '1';
-                    item.style.transform = 'translateY(0)';
-                }
-            }, 2000);
         });
     };
 
-    // Initial setup for existing items
-    const initialItems = document.querySelectorAll('.gallery-item-wrapper');
-    setupFadeAnimation(initialItems);
-
     // Infinite Scroll Implementation
     const gallery = document.querySelector('.gallery');
-    
+
     if (window.GALLERY_ITEMS && window.GALLERY_ITEMS.length > 0) {
         let currentIndex = 0;
         const BATCH_SIZE = 12;
@@ -73,25 +52,32 @@ document.addEventListener('DOMContentLoaded', () => {
             const newElements = [];
 
             nextBatch.forEach(item => {
+                const isString = typeof item === 'string';
+                const src = isString ? `./images/${item}` : item.src;
+                const alt = isString
+                    ? item.replace(/\.(jpg|jpeg|png)$/i, '').replace(/[_-]/g, ' ')
+                    : (item.caption || '');
+
                 const link = document.createElement('a');
-                link.href = item.src;
+                link.href = src;
                 link.dataset.fancybox = "gallery";
-                link.className = "gallery-item-wrapper";
+                link.className = "gallery-item-wrapper fade-init";
 
                 const img = document.createElement('img');
-                img.src = item.src;
-                img.alt = item.caption;
+                img.src = src;
+                img.alt = alt;
                 img.className = "gallery-item";
-                img.loading = "lazy"; // Native lazy loading support
-                
+                img.loading = "lazy";
+                img.decoding = "async";
+
                 link.appendChild(img);
                 fragment.appendChild(link);
                 newElements.push(link);
             });
 
             gallery.appendChild(fragment);
-            setupFadeAnimation(newElements);
-            
+            newElements.forEach(el => fadeObserver.observe(el));
+
             currentIndex += BATCH_SIZE;
 
             if (currentIndex >= window.GALLERY_ITEMS.length) {
@@ -111,9 +97,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (entries[0].isIntersecting) {
                 loadMorePhotos();
             }
-        }, { 
-            rootMargin: '400px', // Load much earlier
-            threshold: 0 
+        }, {
+            rootMargin: '500px',
+            threshold: 0
         });
 
         scrollObserver.observe(sentinel);

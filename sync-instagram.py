@@ -58,10 +58,62 @@ def find_key(obj: Any, target_key: str) -> Any:
     return None
 
 
+def strip_gainmap_jpeg(data: bytes) -> bytes:
+    """
+    Вирізає другий JPEG-потік (Ultra-HDR GainMap / MPF) та hdrgm XMP-метадані,
+    залишаючи чистий однопотоковий SDR JPEG для швидкого рендерингу в браузері без GPU-лагів.
+    """
+    if not data.startswith(b"\xff\xd8"):
+        return data
+    out = bytearray(b"\xff\xd8")
+    i = 2
+    n = len(data)
+    while i < n - 1:
+        if data[i] != 0xFF:
+            return data
+        while i < n and data[i] == 0xFF:
+            i += 1
+        if i >= n:
+            break
+        marker = data[i]
+        i += 1
+        if marker == 0xD9:  # EOI
+            out.extend(b"\xff\xd9")
+            return bytes(out)
+        if marker == 0xDA:  # SOS (Start of Scan)
+            if i + 2 > n:
+                return data
+            seg_len = int.from_bytes(data[i : i + 2], "big")
+            scan_start = i + seg_len
+            eoi_pos = data.find(b"\xff\xd9", scan_start)
+            if eoi_pos != -1:
+                out.extend(b"\xff\xda")
+                out.extend(data[i : eoi_pos + 2])
+                return bytes(out)
+            return data
+        if marker in (0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 0x01):
+            out.extend(bytes([0xFF, marker]))
+            continue
+        if i + 2 > n:
+            return data
+        seg_len = int.from_bytes(data[i : i + 2], "big")
+        seg_data = data[i : i + seg_len]
+        if marker in (0xE1, 0xE2) and (
+            b"hdrgm" in seg_data or b"GainMap" in seg_data or seg_data[2:6] == b"MPF\x00"
+        ):
+            i += seg_len
+            continue
+        out.extend(bytes([0xFF, marker]))
+        out.extend(seg_data)
+        i += seg_len
+    return data
+
+
 def get_best_image_url(item: Dict[str, Any]) -> Optional[str]:
     """
-    Повертає URL фото у максимальній роздільній здатності з image_versions2.candidates.
-    Ніколи не бере низькоякісний display_uri (640px), якщо є повнорозмірні кандидати.
+    Повертає оптимальний Full-HD (1080px, напр. 1080x1440 / 1080x1080) URL фото без кропу
+    з image_versions2.candidates. Уникає як мильних 640px прев'ю (display_uri), так і
+    важких 12-мегапіксельних (3072x4096) сирих зображень, що перевантажують браузер.
     """
     if not isinstance(item, dict):
         return None
@@ -70,15 +122,33 @@ def get_best_image_url(item: Dict[str, Any]) -> Optional[str]:
     if isinstance(img_v2, dict):
         candidates = img_v2.get("candidates", [])
         if isinstance(candidates, list) and candidates:
-            # Якщо у кандидатів вказані width/height — обираємо найбільший за площею
-            with_dims = [c for c in candidates if isinstance(c, dict) and c.get("width") and c.get("height") and c.get("url")]
+            valid = [c for c in candidates if isinstance(c, dict) and c.get("url")]
+            # Відсіюємо квадратні кропи неквадратних фото (stp=c0.512...)
+            non_cropped = [
+                c for c in valid if not re.search(r"stp=c\d+\.", c["url"])
+            ] or valid
+
+            # 1. Якщо є розміри (GraphQL): шукаємо стандартний 1080px по ширині (1080x1440 / 1080x1080)
+            with_dims = [c for c in non_cropped if c.get("width") and c.get("height")]
             if with_dims:
-                best = max(with_dims, key=lambda c: int(c["width"]) * int(c["height"]))
-                return best["url"]
-            # Інакше беремо перший елемент (Instagram завжди кладе оригінал без ресайзу першим)
-            for c in candidates:
-                if isinstance(c, dict) and c.get("url"):
+                exact_1080 = [c for c in with_dims if int(c["width"]) == 1080]
+                if exact_1080:
+                    return max(exact_1080, key=lambda c: int(c["height"]))["url"]
+                # Або найбільший кандидат, що не перевищує 1440px по довгій стороні
+                reasonable = [
+                    c for c in with_dims if max(int(c["width"]), int(c["height"])) <= 1440
+                ]
+                if reasonable:
+                    return max(reasonable, key=lambda c: int(c["width"]) * int(c["height"]))["url"]
+                return max(with_dims, key=lambda c: int(c["width"]) * int(c["height"]))["url"]
+
+            # 2. Якщо розмірів немає (HTML Relay): шукаємо некропнутий p1080x1080 або s1080x1080
+            for c in non_cropped:
+                if "1080x1080" in c["url"]:
                     return c["url"]
+
+            # 3. Fallback — перший некропнутий кандидат
+            return non_cropped[0]["url"]
 
     return item.get("display_uri") or item.get("display_url")
 
@@ -430,7 +500,7 @@ def download_instagram_photos(
                         headers={"Referer": "https://www.instagram.com/"},
                     )
                     if img_resp.status_code == 200:
-                        filepath.write_bytes(img_resp.content)
+                        filepath.write_bytes(strip_gainmap_jpeg(img_resp.content))
                     else:
                         print(f"  ❌ Помилка завантаження фото {img_resp.status_code} для {filename}")
                 except Exception as error:
@@ -468,7 +538,8 @@ def download_instagram_photos(
     final_posts = list(posts_dict.values())
     final_posts.sort(key=lambda x: x.get("date", ""), reverse=True)
 
-    save_metadata(username=username, posts_data=final_posts)
+    if new_downloaded > 0 or not METADATA_FILE.is_file():
+        save_metadata(username=username, posts_data=final_posts)
     print(
         f"\n✨ Синхронізацію успішно завершено! Завантажено у повній якості: {new_downloaded}. Загалом в архіві: {len(final_posts)} постів."
     )

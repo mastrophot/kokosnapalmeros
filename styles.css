@@ -27,6 +27,9 @@ body::before {
     background-repeat: no-repeat;
     opacity: 0.3;
     z-index: -1;
+    pointer-events: none;
+    will-change: transform;
+    transform: translateZ(0);
 }
 
 /* Галерея */
@@ -52,17 +55,24 @@ body::before {
     border-radius: 12px;
     padding: 3px;
     background: rgba(0, 0, 0, 0.3);
-    transition: transform 0.5s ease, box-shadow 0.3s ease;
+    transition: opacity 0.45s ease-out, transform 0.35s ease-out, box-shadow 0.3s ease;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    content-visibility: auto;
+    contain-intrinsic-size: auto 380px;
+}
+
+.gallery-item-wrapper.fade-init {
+    opacity: 0;
+    transform: translateY(20px);
 }
 
 .gallery-item {
+    display: block;
     width: 100%;
     height: 100%;
     object-fit: cover;
     object-position: center;
     border-radius: 10px;
-    transition: all 0.5s ease;
 }
 
 .gallery-item-wrapper:hover {
