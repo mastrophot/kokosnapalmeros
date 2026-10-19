@@ -6,59 +6,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const gallery = document.querySelector('.gallery');
     const backToTopBtn = document.getElementById('backToTop');
-    const aspectBtns = document.querySelectorAll('[data-set-aspect]');
     const densityBtns = document.querySelectorAll('[data-set-density]');
     const yearPills = document.querySelectorAll('.year-pill');
 
-    // 1. Відновлення налаштувань вигляду (4:5 чи 1:1, стандартна чи щільна сітка)
-    const savedAspect = localStorage.getItem('kokos_aspect') || 'portrait';
+    // 1. Відновлення налаштувань щільності сітки (пропорції 4:5 завжди за замовчуванням)
+    document.body.removeAttribute('data-aspect');
+    localStorage.removeItem('kokos_aspect');
     const savedDensity = localStorage.getItem('kokos_density') || 'comfy';
 
-    const applyViewSettings = (aspect, density) => {
-        if (aspect === 'square') {
-            document.body.setAttribute('data-aspect', 'square');
-        } else {
-            document.body.removeAttribute('data-aspect');
-        }
+    const applyDensity = (density) => {
         if (density === 'compact') {
             document.body.setAttribute('data-density', 'compact');
         } else {
             document.body.removeAttribute('data-density');
         }
-        aspectBtns.forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.setAspect === aspect);
-        });
         densityBtns.forEach(btn => {
             btn.classList.toggle('active', btn.dataset.setDensity === density);
         });
     };
 
-    applyViewSettings(savedAspect, savedDensity);
-
-    aspectBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const val = btn.dataset.setAspect;
-            localStorage.setItem('kokos_aspect', val);
-            applyViewSettings(val, localStorage.getItem('kokos_density') || 'comfy');
-        });
-    });
+    applyDensity(savedDensity);
 
     densityBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             const val = btn.dataset.setDensity;
             localStorage.setItem('kokos_density', val);
-            applyViewSettings(localStorage.getItem('kokos_aspect') || 'portrait', val);
+            applyDensity(val);
         });
     });
 
-    // 2. Ініціалізація Fancybox 5 (відкриває 100% оригінал з href="./images/...")
+    // 2. Ініціалізація Fancybox 5 (відкриває 100% оригінал з href="./images/...", без підписів)
     if (window.Fancybox) {
         Fancybox.bind('[data-fancybox="gallery"]', {
             animated: true,
             showClass: 'fancybox-fadeIn',
             hideClass: 'fancybox-fadeOut',
             dragToClose: true,
-             compact: false,
+            compact: false,
+            caption: () => '',
             Images: {
                 zoom: true,
                 Panzoom: {
@@ -79,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 3. Допоміжні функції парсингу імені файлу та метаданих поста
+    // 3. Допоміжні функції парсингу імені файлу
     const parseEntry = (rawEntry) => {
         if (typeof rawEntry !== 'string') {
             const filename = rawEntry.src.replace('./images/', '');
@@ -110,35 +95,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return `${day} ${monthName} ${year}`;
     };
 
-    const extractShortcode = (filename) => {
-        const m = filename.match(/^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_UTC_([A-Za-z0-9_-]+?)(?:_\d+)?\.jpg$/i);
-        return m ? m[1] : null;
-    };
-
-    const buildCaptionHtml = (filename, dateLabel) => {
-        const code = extractShortcode(filename);
-        const postsMeta = window.GALLERY_POSTS || {};
-        const post = code && postsMeta[code] ? postsMeta[code] : null;
-        const parts = [];
-        if (post && post.c) {
-            const safeText = post.c
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/\n/g, '<br>');
-            parts.push(`<div>${safeText}</div>`);
-        }
-        const metaLine = [];
-        if (dateLabel) metaLine.push(`<span>${dateLabel}</span>`);
-        if (code) {
-            metaLine.push(`<a href="https://www.instagram.com/p/${code}/" target="_blank" rel="noopener">Instagram ↗</a>`);
-        }
-        if (metaLine.length > 0) {
-            parts.push(`<div style="margin-top:4px;font-size:0.8rem;color:#a1a1aa;">${metaLine.join(' · ')}</div>`);
-        }
-        return parts.join('');
-    };
-
     // 4. Плавна поява карток при скролі
     const fadeObserver = new IntersectionObserver((entries, observer) => {
         entries.forEach(entry => {
@@ -158,21 +114,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let activeYear = 'all';
     let filteredList = allParsed;
-    // Якщо в DOM вже є стартові картки (18 шт.), починаємо довантажувати з 18-го індексу
     const initialDomCount = gallery ? gallery.querySelectorAll('.gallery-item-wrapper').length : 0;
     let currentIndex = initialDomCount;
     const BATCH_SIZE = 24;
 
     const createCardElement = (entry, eager = false) => {
         const dateLabel = formatReadableDate(entry.filename);
-        const captionHtml = buildCaptionHtml(entry.filename, dateLabel);
 
         const link = document.createElement('a');
         link.href = entry.fullSrc;
         link.dataset.fancybox = 'gallery';
-        if (captionHtml) {
-            link.dataset.caption = captionHtml;
-        }
         link.dataset.year = entry.year;
         link.className = eager ? 'gallery-item-wrapper' : 'gallery-item-wrapper fade-init';
 

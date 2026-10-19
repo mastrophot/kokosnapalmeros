@@ -161,13 +161,11 @@ function updateHTML(galleryData) {
             const thumbSrc = hasThumb ? `./thumbs/${filename}` : fullSrc;
             const dateLabel = formatReadableDate(filename);
             const year = filename.slice(0, 4);
-            const captionHtml = buildCaptionHtml(filename, dateLabel, postsMeta);
-            const captionAttr = captionHtml ? ` data-caption="${escapeAttr(captionHtml)}"` : "";
             const loadAttrs = idx < 6
                 ? 'fetchpriority="high" decoding="async"'
                 : 'loading="lazy" decoding="async"';
 
-            return `          <a href="${fullSrc}" data-fancybox="gallery"${captionAttr} data-year="${year}" class="gallery-item-wrapper">
+            return `          <a href="${fullSrc}" data-fancybox="gallery" data-year="${year}" class="gallery-item-wrapper">
             <img src="${thumbSrc}" alt="${escapeAttr(dateLabel || filename)}" class="gallery-item" ${loadAttrs}>
             <div class="card-overlay"><span class="card-date">${dateLabel}</span><span class="card-zoom-icon"><i class="fas fa-expand-alt"></i></span></div>
           </a>`;
@@ -186,7 +184,7 @@ function updateHTML(galleryData) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#09090b">
-    <title>kokosnapalmeros — Фотоархів</title>
+    <title>kokosnapalmeros</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥥</text></svg>">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -201,14 +199,10 @@ function updateHTML(galleryData) {
             <div class="brand-avatar">🥥</div>
             <div class="brand-text">
               <span class="brand-title">kokosnapalmeros</span>
-              <span class="brand-subtitle">${totalFormatted} фото · ${minYear}–${maxYear} · Оригінали</span>
+              <span class="brand-subtitle">${totalFormatted} Photo · ${minYear}–${maxYear}</span>
             </div>
           </a>
           <div class="header-actions">
-            <div class="control-group" role="group" aria-label="Пропорції фото">
-              <button type="button" class="ctrl-btn active" data-set-aspect="portrait" title="Вертикальний формат 4:5">4:5</button>
-              <button type="button" class="ctrl-btn" data-set-aspect="square" title="Квадратний формат 1:1">1:1</button>
-            </div>
             <div class="control-group" role="group" aria-label="Щільність сітки">
               <button type="button" class="ctrl-btn active" data-set-density="comfy" title="Стандартна сітка"><i class="fas fa-th-large"></i></button>
               <button type="button" class="ctrl-btn" data-set-density="compact" title="Щільна сітка"><i class="fas fa-th"></i></button>
@@ -249,7 +243,7 @@ ${cardsHtml}
             fs.existsSync(path.join(THUMBS_DIR, filename)) ? `*${filename}` : filename
         );
 
-        const bundleJs = `window.GALLERY_POSTS = ${JSON.stringify(postsMeta)};\nwindow.GALLERY_ALL = ${JSON.stringify(compactAll)};\n`;
+        const bundleJs = `window.GALLERY_ALL = ${JSON.stringify(compactAll)};\n`;
         fs.writeFileSync("gallery-items.js", bundleJs, "utf-8");
         fs.writeFileSync(HTML_FILE, fullHtml, "utf-8");
 
