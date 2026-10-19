@@ -159,15 +159,13 @@ function updateHTML(galleryData) {
             const hasThumb = fs.existsSync(path.join(THUMBS_DIR, filename));
             const fullSrc = `./images/${filename}`;
             const thumbSrc = hasThumb ? `./thumbs/${filename}` : fullSrc;
-            const dateLabel = formatReadableDate(filename);
             const year = filename.slice(0, 4);
             const loadAttrs = idx < 6
                 ? 'fetchpriority="high" decoding="async"'
                 : 'loading="lazy" decoding="async"';
 
             return `          <a href="${fullSrc}" data-fancybox="gallery" data-year="${year}" class="gallery-item-wrapper">
-            <img src="${thumbSrc}" alt="${escapeAttr(dateLabel || filename)}" class="gallery-item" ${loadAttrs}>
-            <div class="card-overlay"><span class="card-date">${dateLabel}</span><span class="card-zoom-icon"><i class="fas fa-expand-alt"></i></span></div>
+            <img src="${thumbSrc}" alt="" class="gallery-item" ${loadAttrs}>
           </a>`;
         }).join("\n");
 

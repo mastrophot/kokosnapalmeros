@@ -321,50 +321,12 @@ body::before {
     transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Hover Overlay (Desktop only) */
-.card-overlay {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0) 42%);
-    opacity: 0;
-    transition: opacity 0.25s ease;
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    padding: 0.75rem 0.85rem;
-    pointer-events: none;
-}
-
-.card-date {
-    font-size: 0.76rem;
-    font-weight: 550;
-    color: rgba(255, 255, 255, 0.92);
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 0.01em;
-}
-
-.card-zoom-icon {
-    font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.8);
-    background: rgba(0, 0, 0, 0.45);
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-}
-
 @media (hover: hover) and (pointer: fine) {
     .gallery-item-wrapper:hover {
         border-color: var(--border-hover);
     }
     .gallery-item-wrapper:hover .gallery-item {
         transform: scale(1.035);
-    }
-    .gallery-item-wrapper:hover .card-overlay {
-        opacity: 1;
     }
 }
 

@@ -119,8 +119,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const BATCH_SIZE = 24;
 
     const createCardElement = (entry, eager = false) => {
-        const dateLabel = formatReadableDate(entry.filename);
-
         const link = document.createElement('a');
         link.href = entry.fullSrc;
         link.dataset.fancybox = 'gallery';
@@ -129,7 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const img = document.createElement('img');
         img.src = entry.thumbSrc;
-        img.alt = dateLabel || entry.filename;
+        img.alt = '';
         img.className = 'gallery-item';
         img.decoding = 'async';
         if (eager) {
@@ -138,12 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
             img.loading = 'lazy';
         }
 
-        const overlay = document.createElement('div');
-        overlay.className = 'card-overlay';
-        overlay.innerHTML = `<span class="card-date">${dateLabel}</span><span class="card-zoom-icon"><i class="fas fa-expand-alt"></i></span>`;
-
         link.appendChild(img);
-        link.appendChild(overlay);
         return link;
     };
 
