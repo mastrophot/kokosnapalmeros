@@ -52,13 +52,28 @@ html {
 body {
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif;
     background-color: var(--bg-canvas);
-    background-image: radial-gradient(ellipse 80% 360px at 50% -120px, rgba(255, 255, 255, 0.07), transparent);
-    background-repeat: no-repeat;
     color: var(--text-primary);
     line-height: 1.5;
     min-height: 100vh;
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
+}
+
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image:
+        linear-gradient(180deg, rgba(9, 9, 11, 0.68) 0%, rgba(9, 9, 11, 0.84) 100%),
+        url('./images/background.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    z-index: -1;
+    pointer-events: none;
+    transform: translate3d(0, 0, 0);
+    will-change: transform;
+    backface-visibility: hidden;
 }
 
 /* ==========================================================================
