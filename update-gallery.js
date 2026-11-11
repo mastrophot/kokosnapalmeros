@@ -228,7 +228,7 @@ function updateHTML(galleryData) {
         const ogCover = sortedPhotos[0] ? `images/${sortedPhotos[0]}` : "images/background.jpg";
         const ogImageUrl = `${SITE_URL}${ogCover}`;
 
-        const faviconSvg = `data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><rect width=%2264%22 height=%2264%22 rx=%2216%22 fill=%22%2309090b%22/><rect x=%2214%22 y=%2214%22 width=%2236%22 height=%2236%22 rx=%229%22 fill=%22none%22 stroke=%22%23f4f4f6%22 stroke-width=%224%22/><circle cx=%2232%22 cy=%2232%22 r=%228.5%22 fill=%22none%22 stroke=%22%23f4f4f6%22 stroke-width=%224%22/><circle cx=%2242.5%22 cy=%2221.5%22 r=%222.5%22 fill=%22%23f4f4f6%22/></svg>`;
+        const faviconSvg = `data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥥</text></svg>`;
 
         const cspPolicy = [
             "default-src 'self'",
