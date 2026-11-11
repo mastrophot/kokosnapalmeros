@@ -130,7 +130,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
     const initialUrlYear = urlParams.get('year');
 
-    let viewMode = localStorage.getItem('kokos_view') === 'frames' ? 'frames' : 'series';
+    let viewMode = localStorage.getItem('kokos_view_v2') === 'series' ? 'series' : 'frames';
     if (urlParams.get('view') === 'frames') viewMode = 'frames';
     if (urlParams.get('view') === 'series') viewMode = 'series';
 
@@ -276,8 +276,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     if (allFrames.length > 0) {
-        if (viewMode === 'series' && activeYear === 'all') {
-            filteredList = allSeries;
+        if (viewMode === 'frames' && activeYear === 'all') {
+            filteredList = allFrames;
             syncControlsState();
         } else {
             rebuildGallery(false);
@@ -286,10 +286,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     viewBtns.forEach(btn => {
         btn.addEventListener('click', () => {
-            const nextView = btn.dataset.setView === 'frames' ? 'frames' : 'series';
+            const nextView = btn.dataset.setView === 'series' ? 'series' : 'frames';
             if (nextView === viewMode) return;
             viewMode = nextView;
-            localStorage.setItem('kokos_view', viewMode);
+            localStorage.setItem('kokos_view_v2', viewMode);
             rebuildGallery(true);
         });
     });

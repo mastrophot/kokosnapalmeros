@@ -215,6 +215,7 @@ def get_thumb_image_url(item: Dict[str, Any]) -> Optional[str]:
                 medium = [c for c in with_dims if 480 <= int(c["width"]) <= 750]
                 if medium:
                     return max(medium, key=lambda c: int(c["width"]))["url"]
+                return min(with_dims, key=lambda c: abs(int(c["width"]) - 640))["url"]
 
             for c in non_cropped:
                 if "640x640" in c["url"] or "720x720" in c["url"]:

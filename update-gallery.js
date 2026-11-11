@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
  * Gallery Update Script
- * Генерує статичний index.html та компактний бандл gallery-items.js
- * без зовнішніх npm-залежностей (чисті fs + path).
+ * Генерує статичний index.html, компактний бандл gallery-items.js та sitemap.xml
+ * без зовнішніх npm-залежностей (чисті вбудовані fs, path, crypto).
  */
 
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
@@ -12,17 +13,14 @@ const ROOT_DIR = __dirname;
 const METADATA_FILE = path.join(ROOT_DIR, "gallery-data.json");
 const HTML_FILE = path.join(ROOT_DIR, "index.html");
 const BUNDLE_FILE = path.join(ROOT_DIR, "gallery-items.js");
+const SITEMAP_FILE = path.join(ROOT_DIR, "sitemap.xml");
 const IMAGES_DIR = path.join(ROOT_DIR, "images");
 const THUMBS_DIR = path.join(ROOT_DIR, "thumbs");
+const VENDOR_DIR = path.join(ROOT_DIR, "vendor");
 const AVATAR_FILE = path.join(IMAGES_DIR, "avatar.jpg");
 const SITE_URL = "https://mastrophot.github.io/kokosnapalmeros/";
 
 const SAFE_FILENAME_RE = /^\d{4}[-_]\d{2}[-_]\d{2}_\d{2}-\d{2}-\d{2}_UTC(?:_[A-Za-z0-9_-]+)?\.jpg$/i;
-
-const FANCYBOX_CSS_URL = "https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0.36/dist/fancybox/fancybox.css";
-const FANCYBOX_CSS_SRI = "sha384-qlUhevqmCF5AxtnfkF0zXJClBzA6GJuX/UrLejCfE61bBGt+zo/My0AJ+ojVmUSb";
-const FANCYBOX_JS_URL = "https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0.36/dist/fancybox/fancybox.umd.js";
-const FANCYBOX_JS_SRI = "sha384-BodKYo5iRmFaqEaP1o8AAu9hCHqLvNhSWEg12QF1IjPnl1SgsrwQMSMKUB4POJ18";
 
 const MONTHS_UK = [
     "січ", "лют", "бер", "кві", "тра", "чер",
@@ -36,6 +34,15 @@ function readGalleryData() {
     } catch (error) {
         console.error("❌ Помилка читання gallery-data.json:", error.message);
         return null;
+    }
+}
+
+function fileHash(filePath) {
+    try {
+        const buf = fs.readFileSync(filePath);
+        return crypto.createHash("sha256").update(buf).digest("hex").slice(0, 8);
+    } catch {
+        return "1";
     }
 }
 
@@ -67,19 +74,16 @@ function escapeAttr(str) {
         .replace(/>/g, "&gt;");
 }
 
-function formatSeriesLabel(filename, count) {
+function formatPhotoLabel(filename) {
     const m = filename.match(/^(\d{4})[-_](\d{2})[-_](\d{2})/);
-    if (!m) {
-        return count > 1 ? `Серія @kokosnapalmeros (${count} фото)` : "Фото @kokosnapalmeros";
-    }
+    if (!m) return "Фото @kokosnapalmeros";
     const year = m[1];
     const monthIdx = parseInt(m[2], 10) - 1;
     const day = parseInt(m[3], 10);
     const monthName = MONTHS_UK[monthIdx] || m[2];
-    if (count > 1) {
-        return `Серія @kokosnapalmeros — ${day} ${monthName} ${year} (${count} фото)`;
-    }
-    return `Фото @kokosnapalmeros — ${day} ${monthName} ${year}`;
+    const numMatch = filename.match(/_(\d+)\.jpg$/i);
+    const suffix = numMatch ? `, кадр ${numMatch[1]}` : "";
+    return `Фото @kokosnapalmeros — ${day} ${monthName} ${year}${suffix}`;
 }
 
 function formatNumberSpaces(num) {
@@ -168,50 +172,59 @@ function updateHTML(galleryData) {
         const totalFramesFormatted = formatNumberSpaces(sortedPhotos.length);
         const totalSeriesFormatted = formatNumberSpaces(sortedSeries.length);
 
-        const svgLayers = `<svg class="series-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4.5" width="9.5" height="9.5" rx="2"/><path d="M5.5 2h6.5a2 2 0 0 1 2 2v6.5"/></svg>`;
+        const compactAll = sortedPhotos.map(filename =>
+            fs.existsSync(path.join(THUMBS_DIR, filename)) ? `*${filename}` : filename
+        );
+        const bundleJs = `window.GALLERY_ALL = ${JSON.stringify(compactAll)};\n`;
+        fs.writeFileSync(BUNDLE_FILE, bundleJs, "utf-8");
+
+        const cssVer = fileHash(path.join(ROOT_DIR, "styles.css"));
+        const jsVer = fileHash(path.join(ROOT_DIR, "script.js"));
+        const bundleVer = fileHash(BUNDLE_FILE);
+        const fbCssVer = fileHash(path.join(VENDOR_DIR, "fancybox.css"));
+        const fbJsVer = fileHash(path.join(VENDOR_DIR, "fancybox.umd.js"));
+        const avatarVer = fileHash(AVATAR_FILE);
+
         const svgGridComfy = `<svg class="icon-svg" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1.2"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1.2"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1.2"/><rect x="9" y="9" width="5.5" height="5.5" rx="1.2"/></svg>`;
         const svgGridCompact = `<svg class="icon-svg" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="1" y="1" width="3.8" height="3.8" rx="0.8"/><rect x="6.1" y="1" width="3.8" height="3.8" rx="0.8"/><rect x="11.2" y="1" width="3.8" height="3.8" rx="0.8"/><rect x="1" y="6.1" width="3.8" height="3.8" rx="0.8"/><rect x="6.1" y="6.1" width="3.8" height="3.8" rx="0.8"/><rect x="11.2" y="6.1" width="3.8" height="3.8" rx="0.8"/><rect x="1" y="11.2" width="3.8" height="3.8" rx="0.8"/><rect x="6.1" y="11.2" width="3.8" height="3.8" rx="0.8"/><rect x="11.2" y="11.2" width="3.8" height="3.8" rx="0.8"/></svg>`;
         const svgInstagram = `<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>`;
         const svgArrowUp = `<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>`;
 
+        // Дефолтний режим — Кадри (перші 18 окремих знімків у SSR)
         const INITIAL_BATCH_SIZE = 18;
-        const initialSeries = sortedSeries.slice(0, INITIAL_BATCH_SIZE);
+        const initialPhotos = sortedPhotos.slice(0, INITIAL_BATCH_SIZE);
 
-        const cardsHtml = initialSeries.map((group, idx) => {
-            const coverFilename = group.items[0];
-            const count = group.items.length;
-            const hasThumb = fs.existsSync(path.join(THUMBS_DIR, coverFilename));
-            const fullSrc = `./images/${coverFilename}`;
-            const thumbSrc = hasThumb ? `./thumbs/${coverFilename}` : fullSrc;
-            const safeLabel = escapeAttr(formatSeriesLabel(coverFilename, count));
+        const cardsHtml = initialPhotos.map((filename, idx) => {
+            const hasThumb = fs.existsSync(path.join(THUMBS_DIR, filename));
+            const fullSrc = `./images/${filename}`;
+            const thumbSrc = hasThumb ? `./thumbs/${filename}` : fullSrc;
+            const year = filename.slice(0, 4);
+            const safeLabel = escapeAttr(formatPhotoLabel(filename));
             const loadAttrs = idx < 6
                 ? 'fetchpriority="high" decoding="async"'
                 : 'loading="lazy" decoding="async"';
-            const badgeHtml = count > 1
-                ? `\n            <span class="series-badge" aria-hidden="true">${svgLayers}<span>${count}</span></span>`
-                : "";
 
-            return `          <a href="${fullSrc}" data-index="${idx}" data-year="${group.year}" aria-label="${safeLabel}" class="gallery-item-wrapper">
-            <img src="${thumbSrc}" alt="${safeLabel}" class="gallery-item is-loaded" ${loadAttrs}>${badgeHtml}
+            return `          <a href="${fullSrc}" data-index="${idx}" data-year="${year}" aria-label="${safeLabel}" class="gallery-item-wrapper">
+            <img src="${thumbSrc}" alt="${safeLabel}" class="gallery-item is-loaded" ${loadAttrs}>
           </a>`;
         }).join("\n");
 
         const yearPillsHtml = [
-            `<button type="button" class="year-pill active" data-year="all" data-series-count="${sortedSeries.length}" data-frames-count="${sortedPhotos.length}" aria-pressed="true">Усі <span class="year-count">${sortedSeries.length}</span></button>`,
+            `<button type="button" class="year-pill active" data-year="all" data-series-count="${sortedSeries.length}" data-frames-count="${sortedPhotos.length}" aria-pressed="true">Усі <span class="year-count">${sortedPhotos.length}</span></button>`,
             ...sortedYears.map(yr => {
                 const sCount = yearSeriesCounts.get(yr) || 0;
                 const fCount = yearFrameCounts.get(yr) || 0;
-                return `<button type="button" class="year-pill" data-year="${yr}" data-series-count="${sCount}" data-frames-count="${fCount}" aria-pressed="false">${yr} <span class="year-count">${sCount}</span></button>`;
+                return `<button type="button" class="year-pill" data-year="${yr}" data-series-count="${sCount}" data-frames-count="${fCount}" aria-pressed="false">${yr} <span class="year-count">${fCount}</span></button>`;
             })
         ].join("\n          ");
 
         const hasAvatar = fs.existsSync(AVATAR_FILE);
         const avatarHtml = hasAvatar
-            ? `<img src="./images/avatar.jpg" alt="" width="38" height="38" decoding="async" class="brand-avatar">`
+            ? `<img src="./images/avatar.jpg?v=${avatarVer}" alt="" width="38" height="38" decoding="async" class="brand-avatar">`
             : `<span class="brand-avatar brand-monogram" aria-hidden="true">K</span>`;
 
         const stamp = escapeAttr((galleryData && galleryData.last_updated) ? galleryData.last_updated : "synced");
-        const metaDescription = escapeAttr(`Візуальний фотоархів @kokosnapalmeros — ${totalSeriesFormatted} серій, ${totalFramesFormatted} фото (${minYear}–${maxYear}).`);
+        const metaDescription = escapeAttr(`Візуальний фотоархів @kokosnapalmeros — ${totalFramesFormatted} фото, ${totalSeriesFormatted} серій (${minYear}–${maxYear}).`);
         const ogCover = sortedPhotos[0] ? `images/${sortedPhotos[0]}` : "images/background.jpg";
         const ogImageUrl = `${SITE_URL}${ogCover}`;
 
@@ -219,8 +232,8 @@ function updateHTML(galleryData) {
 
         const cspPolicy = [
             "default-src 'self'",
-            "script-src 'self' https://cdn.jsdelivr.net",
-            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+            "script-src 'self'",
+            "style-src 'self' 'unsafe-inline'",
             "img-src 'self' data: blob:",
             "font-src 'self'",
             "connect-src 'self'",
@@ -252,9 +265,9 @@ function updateHTML(galleryData) {
     <meta name="twitter:description" content="${metaDescription}">
     <meta name="twitter:image" content="${ogImageUrl}">
     <link rel="icon" href="${faviconSvg}">
-    <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="${FANCYBOX_CSS_URL}" integrity="${FANCYBOX_CSS_SRI}" crossorigin="anonymous">
-    <script src="${FANCYBOX_JS_URL}" integrity="${FANCYBOX_JS_SRI}" crossorigin="anonymous" defer></script>
+    <link rel="stylesheet" href="styles.css?v=${cssVer}">
+    <link rel="stylesheet" href="vendor/fancybox.css?v=${fbCssVer}">
+    <script src="vendor/fancybox.umd.js?v=${fbJsVer}" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -264,13 +277,13 @@ function updateHTML(galleryData) {
             ${avatarHtml}
             <div class="brand-text">
               <span class="brand-title">kokosnapalmeros</span>
-              <span class="brand-subtitle">${totalSeriesFormatted} серій · ${totalFramesFormatted} фото · ${minYear}–${maxYear}</span>
+              <span class="brand-subtitle">${totalFramesFormatted} фото · ${totalSeriesFormatted} серій · ${minYear}–${maxYear}</span>
             </div>
           </a>
           <div class="header-actions">
             <div class="control-group" role="group" aria-label="Режим подачі">
-              <button type="button" class="ctrl-btn active" data-set-view="series" aria-pressed="true" title="Групувати каруселі в серії">Серії</button>
-              <button type="button" class="ctrl-btn" data-set-view="frames" aria-pressed="false" title="Показати всі кадри окремо">Кадри</button>
+              <button type="button" class="ctrl-btn active" data-set-view="frames" aria-pressed="true" title="Показати всі кадри окремо">Кадри</button>
+              <button type="button" class="ctrl-btn" data-set-view="series" aria-pressed="false" title="Групувати каруселі в серії">Серії</button>
             </div>
             <div class="control-group" role="group" aria-label="Щільність сітки">
               <button type="button" class="ctrl-btn active" data-set-density="comfy" aria-label="Стандартна сітка" aria-pressed="true" title="Стандартна сітка">${svgGridComfy}</button>
@@ -301,24 +314,33 @@ ${cardsHtml}
       ${svgArrowUp}
     </button>
 
-    <script src="gallery-items.js" defer></script>
-    <script src="script.js" defer></script>
+    <script src="gallery-items.js?v=${bundleVer}" defer></script>
+    <script src="script.js?v=${jsVer}" defer></script>
   </body>
 </html>
 `;
 
-        const compactAll = sortedPhotos.map(filename =>
-            fs.existsSync(path.join(THUMBS_DIR, filename)) ? `*${filename}` : filename
-        );
-
-        const bundleJs = `window.GALLERY_ALL = ${JSON.stringify(compactAll)};\n`;
-        fs.writeFileSync(BUNDLE_FILE, bundleJs, "utf-8");
         fs.writeFileSync(HTML_FILE, fullHtml, "utf-8");
 
+        const latestDate = sortedPhotos[0]
+            ? sortedPhotos[0].slice(0, 10).replace(/_/g, "-")
+            : "2026-11-10";
+        const sitemapXml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>${SITE_URL}</loc>
+    <lastmod>${latestDate}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>
+`;
+        fs.writeFileSync(SITEMAP_FILE, sitemapXml, "utf-8");
+
         const thumbsCount = compactAll.filter(x => x.startsWith("*")).length;
-        console.log(`✅ HTML оновлено: ${initialSeries.length} стартових серій у DOM`);
+        console.log(`✅ HTML оновлено: ${initialPhotos.length} стартових кадрів у DOM (дефолт: Кадри)`);
         console.log(`📦 gallery-items.js: ${compactAll.length} фото у ${sortedSeries.length} серіях (${thumbsCount} із прев'ю в thumbs/)`);
-        console.log(`📊 Всього в галереї: ${sortedSeries.length} серій / ${sortedPhotos.length} фото (${sortedYears.length} років)`);
+        console.log(`📊 Всього в галереї: ${sortedPhotos.length} фото / ${sortedSeries.length} серій (${sortedYears.length} років)`);
         console.log(`\n✨ Галерею оновлено!`);
         return true;
     } catch (error) {

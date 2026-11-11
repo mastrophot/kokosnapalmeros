@@ -2,7 +2,7 @@ name: Sync Instagram Photos
 
 on:
   schedule:
-    - cron: '0 4 * * *'  # Щодня о 04:00 UTC
+    - cron: '17 4 * * *'  # Щодня о 04:17 UTC (поза піком :00 черги GitHub Actions)
   workflow_dispatch:
 
 concurrency:
@@ -43,7 +43,7 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add images/ thumbs/ gallery-data.json gallery-items.js index.html
+          git add images/ thumbs/ gallery-data.json gallery-items.js index.html sitemap.xml
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
