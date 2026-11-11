@@ -14,6 +14,7 @@ const HTML_FILE = path.join(ROOT_DIR, "index.html");
 const BUNDLE_FILE = path.join(ROOT_DIR, "gallery-items.js");
 const IMAGES_DIR = path.join(ROOT_DIR, "images");
 const THUMBS_DIR = path.join(ROOT_DIR, "thumbs");
+const AVATAR_FILE = path.join(IMAGES_DIR, "avatar.jpg");
 const SITE_URL = "https://mastrophot.github.io/kokosnapalmeros/";
 
 const SAFE_FILENAME_RE = /^\d{4}[-_]\d{2}[-_]\d{2}_\d{2}-\d{2}-\d{2}_UTC(?:_[A-Za-z0-9_-]+)?\.jpg$/i;
@@ -54,6 +55,10 @@ function isDuplicateWithoutShortcode(filename, shortcodePrefixes) {
     return shortcodePrefixes.has(match[1]);
 }
 
+function getSeriesKey(filename) {
+    return filename.replace(/_\d+\.jpg$/i, "").replace(/\.jpg$/i, "");
+}
+
 function escapeAttr(str) {
     return String(str)
         .replace(/&/g, "&amp;")
@@ -62,16 +67,23 @@ function escapeAttr(str) {
         .replace(/>/g, "&gt;");
 }
 
-function formatPhotoLabel(filename) {
+function formatSeriesLabel(filename, count) {
     const m = filename.match(/^(\d{4})[-_](\d{2})[-_](\d{2})/);
-    if (!m) return "Фото @kokosnapalmeros";
+    if (!m) {
+        return count > 1 ? `Серія @kokosnapalmeros (${count} фото)` : "Фото @kokosnapalmeros";
+    }
     const year = m[1];
     const monthIdx = parseInt(m[2], 10) - 1;
     const day = parseInt(m[3], 10);
     const monthName = MONTHS_UK[monthIdx] || m[2];
-    const numMatch = filename.match(/_(\d+)\.jpg$/i);
-    const suffix = numMatch ? `, кадр ${numMatch[1]}` : "";
-    return `Фото @kokosnapalmeros — ${day} ${monthName} ${year}${suffix}`;
+    if (count > 1) {
+        return `Серія @kokosnapalmeros — ${day} ${monthName} ${year} (${count} фото)`;
+    }
+    return `Фото @kokosnapalmeros — ${day} ${monthName} ${year}`;
+}
+
+function formatNumberSpaces(num) {
+    return String(num).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 }
 
 function updateHTML(galleryData) {
@@ -122,47 +134,88 @@ function updateHTML(galleryData) {
             return getNum(a) - getNum(b);
         });
 
-        const yearCounts = new Map();
+        const seriesMap = new Map();
+        const sortedSeries = [];
+        sortedPhotos.forEach(filename => {
+            const key = getSeriesKey(filename);
+            let group = seriesMap.get(key);
+            if (!group) {
+                group = {
+                    key,
+                    year: filename.slice(0, 4),
+                    items: [],
+                };
+                seriesMap.set(key, group);
+                sortedSeries.push(group);
+            }
+            group.items.push(filename);
+        });
+
+        const yearFrameCounts = new Map();
         sortedPhotos.forEach(f => {
             const yr = f.slice(0, 4);
-            yearCounts.set(yr, (yearCounts.get(yr) || 0) + 1);
+            yearFrameCounts.set(yr, (yearFrameCounts.get(yr) || 0) + 1);
         });
-        const sortedYears = Array.from(yearCounts.keys()).sort((a, b) => b.localeCompare(a));
+
+        const yearSeriesCounts = new Map();
+        sortedSeries.forEach(group => {
+            yearSeriesCounts.set(group.year, (yearSeriesCounts.get(group.year) || 0) + 1);
+        });
+
+        const sortedYears = Array.from(yearFrameCounts.keys()).sort((a, b) => b.localeCompare(a));
         const minYear = sortedYears[sortedYears.length - 1] || "2014";
         const maxYear = sortedYears[0] || "2026";
-        const totalFormatted = sortedPhotos.length.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+        const totalFramesFormatted = formatNumberSpaces(sortedPhotos.length);
+        const totalSeriesFormatted = formatNumberSpaces(sortedSeries.length);
 
-        const INITIAL_BATCH_SIZE = 18;
-        const initialPhotos = sortedPhotos.slice(0, INITIAL_BATCH_SIZE);
-
-        const cardsHtml = initialPhotos.map((filename, idx) => {
-            const hasThumb = fs.existsSync(path.join(THUMBS_DIR, filename));
-            const fullSrc = `./images/${filename}`;
-            const thumbSrc = hasThumb ? `./thumbs/${filename}` : fullSrc;
-            const year = filename.slice(0, 4);
-            const safeLabel = escapeAttr(formatPhotoLabel(filename));
-            const loadAttrs = idx < 6
-                ? 'fetchpriority="high" decoding="async"'
-                : 'loading="lazy" decoding="async"';
-
-            return `          <a href="${fullSrc}" data-index="${idx}" data-year="${year}" aria-label="${safeLabel}" class="gallery-item-wrapper">
-            <img src="${thumbSrc}" alt="${safeLabel}" class="gallery-item is-loaded" ${loadAttrs}>
-          </a>`;
-        }).join("\n");
-
-        const yearPillsHtml = [
-            `<button type="button" class="year-pill active" data-year="all" aria-pressed="true">Усі <span class="year-count">${sortedPhotos.length}</span></button>`,
-            ...sortedYears.map(yr => `<button type="button" class="year-pill" data-year="${yr}" aria-pressed="false">${yr} <span class="year-count">${yearCounts.get(yr)}</span></button>`)
-        ].join("\n          ");
-
-        const stamp = escapeAttr((galleryData && galleryData.last_updated) ? galleryData.last_updated : "synced");
-        const metaDescription = escapeAttr(`Візуальний фотоархів @kokosnapalmeros — ${totalFormatted} фото (${minYear}–${maxYear}).`);
-        const ogImageUrl = `${SITE_URL}images/background.jpg`;
-
+        const svgLayers = `<svg class="series-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4.5" width="9.5" height="9.5" rx="2"/><path d="M5.5 2h6.5a2 2 0 0 1 2 2v6.5"/></svg>`;
         const svgGridComfy = `<svg class="icon-svg" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1.2"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1.2"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1.2"/><rect x="9" y="9" width="5.5" height="5.5" rx="1.2"/></svg>`;
         const svgGridCompact = `<svg class="icon-svg" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="1" y="1" width="3.8" height="3.8" rx="0.8"/><rect x="6.1" y="1" width="3.8" height="3.8" rx="0.8"/><rect x="11.2" y="1" width="3.8" height="3.8" rx="0.8"/><rect x="1" y="6.1" width="3.8" height="3.8" rx="0.8"/><rect x="6.1" y="6.1" width="3.8" height="3.8" rx="0.8"/><rect x="11.2" y="6.1" width="3.8" height="3.8" rx="0.8"/><rect x="1" y="11.2" width="3.8" height="3.8" rx="0.8"/><rect x="6.1" y="11.2" width="3.8" height="3.8" rx="0.8"/><rect x="11.2" y="11.2" width="3.8" height="3.8" rx="0.8"/></svg>`;
         const svgInstagram = `<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>`;
         const svgArrowUp = `<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>`;
+
+        const INITIAL_BATCH_SIZE = 18;
+        const initialSeries = sortedSeries.slice(0, INITIAL_BATCH_SIZE);
+
+        const cardsHtml = initialSeries.map((group, idx) => {
+            const coverFilename = group.items[0];
+            const count = group.items.length;
+            const hasThumb = fs.existsSync(path.join(THUMBS_DIR, coverFilename));
+            const fullSrc = `./images/${coverFilename}`;
+            const thumbSrc = hasThumb ? `./thumbs/${coverFilename}` : fullSrc;
+            const safeLabel = escapeAttr(formatSeriesLabel(coverFilename, count));
+            const loadAttrs = idx < 6
+                ? 'fetchpriority="high" decoding="async"'
+                : 'loading="lazy" decoding="async"';
+            const badgeHtml = count > 1
+                ? `\n            <span class="series-badge" aria-hidden="true">${svgLayers}<span>${count}</span></span>`
+                : "";
+
+            return `          <a href="${fullSrc}" data-index="${idx}" data-year="${group.year}" aria-label="${safeLabel}" class="gallery-item-wrapper">
+            <img src="${thumbSrc}" alt="${safeLabel}" class="gallery-item is-loaded" ${loadAttrs}>${badgeHtml}
+          </a>`;
+        }).join("\n");
+
+        const yearPillsHtml = [
+            `<button type="button" class="year-pill active" data-year="all" data-series-count="${sortedSeries.length}" data-frames-count="${sortedPhotos.length}" aria-pressed="true">Усі <span class="year-count">${sortedSeries.length}</span></button>`,
+            ...sortedYears.map(yr => {
+                const sCount = yearSeriesCounts.get(yr) || 0;
+                const fCount = yearFrameCounts.get(yr) || 0;
+                return `<button type="button" class="year-pill" data-year="${yr}" data-series-count="${sCount}" data-frames-count="${fCount}" aria-pressed="false">${yr} <span class="year-count">${sCount}</span></button>`;
+            })
+        ].join("\n          ");
+
+        const hasAvatar = fs.existsSync(AVATAR_FILE);
+        const avatarHtml = hasAvatar
+            ? `<img src="./images/avatar.jpg" alt="" width="38" height="38" decoding="async" class="brand-avatar">`
+            : `<span class="brand-avatar brand-monogram" aria-hidden="true">K</span>`;
+
+        const stamp = escapeAttr((galleryData && galleryData.last_updated) ? galleryData.last_updated : "synced");
+        const metaDescription = escapeAttr(`Візуальний фотоархів @kokosnapalmeros — ${totalSeriesFormatted} серій, ${totalFramesFormatted} фото (${minYear}–${maxYear}).`);
+        const ogCover = sortedPhotos[0] ? `images/${sortedPhotos[0]}` : "images/background.jpg";
+        const ogImageUrl = `${SITE_URL}${ogCover}`;
+
+        const faviconSvg = `data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><rect width=%2264%22 height=%2264%22 rx=%2216%22 fill=%22%2309090b%22/><rect x=%2214%22 y=%2214%22 width=%2236%22 height=%2236%22 rx=%229%22 fill=%22none%22 stroke=%22%23f4f4f6%22 stroke-width=%224%22/><circle cx=%2232%22 cy=%2232%22 r=%228.5%22 fill=%22none%22 stroke=%22%23f4f4f6%22 stroke-width=%224%22/><circle cx=%2242.5%22 cy=%2221.5%22 r=%222.5%22 fill=%22%23f4f4f6%22/></svg>`;
 
         const cspPolicy = [
             "default-src 'self'",
@@ -198,7 +251,7 @@ function updateHTML(galleryData) {
     <meta name="twitter:title" content="kokosnapalmeros — Фотоархів">
     <meta name="twitter:description" content="${metaDescription}">
     <meta name="twitter:image" content="${ogImageUrl}">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥥</text></svg>">
+    <link rel="icon" href="${faviconSvg}">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="${FANCYBOX_CSS_URL}" integrity="${FANCYBOX_CSS_SRI}" crossorigin="anonymous">
     <script src="${FANCYBOX_JS_URL}" integrity="${FANCYBOX_JS_SRI}" crossorigin="anonymous" defer></script>
@@ -207,14 +260,18 @@ function updateHTML(galleryData) {
     <header class="site-header">
       <div class="header-inner">
         <div class="header-top">
-          <a href="https://www.instagram.com/kokosnapalmeros/" target="_blank" rel="noopener noreferrer" class="brand">
-            <div class="brand-avatar" aria-hidden="true">🥥</div>
+          <a href="./" class="brand" id="brandHome" aria-label="kokosnapalmeros — на початок архіву">
+            ${avatarHtml}
             <div class="brand-text">
               <span class="brand-title">kokosnapalmeros</span>
-              <span class="brand-subtitle">${totalFormatted} фото · ${minYear}–${maxYear}</span>
+              <span class="brand-subtitle">${totalSeriesFormatted} серій · ${totalFramesFormatted} фото · ${minYear}–${maxYear}</span>
             </div>
           </a>
           <div class="header-actions">
+            <div class="control-group" role="group" aria-label="Режим подачі">
+              <button type="button" class="ctrl-btn active" data-set-view="series" aria-pressed="true" title="Групувати каруселі в серії">Серії</button>
+              <button type="button" class="ctrl-btn" data-set-view="frames" aria-pressed="false" title="Показати всі кадри окремо">Кадри</button>
+            </div>
             <div class="control-group" role="group" aria-label="Щільність сітки">
               <button type="button" class="ctrl-btn active" data-set-density="comfy" aria-label="Стандартна сітка" aria-pressed="true" title="Стандартна сітка">${svgGridComfy}</button>
               <button type="button" class="ctrl-btn" data-set-density="compact" aria-label="Щільна сітка" aria-pressed="false" title="Щільна сітка">${svgGridCompact}</button>
@@ -259,9 +316,9 @@ ${cardsHtml}
         fs.writeFileSync(HTML_FILE, fullHtml, "utf-8");
 
         const thumbsCount = compactAll.filter(x => x.startsWith("*")).length;
-        console.log(`✅ HTML оновлено: ${initialPhotos.length} стартових фото в DOM`);
-        console.log(`📦 gallery-items.js: ${compactAll.length} фото (${thumbsCount} із швидкими прев'ю в thumbs/)`);
-        console.log(`📊 Всього в галереї: ${sortedPhotos.length} фото (${sortedYears.length} років)`);
+        console.log(`✅ HTML оновлено: ${initialSeries.length} стартових серій у DOM`);
+        console.log(`📦 gallery-items.js: ${compactAll.length} фото у ${sortedSeries.length} серіях (${thumbsCount} із прев'ю в thumbs/)`);
+        console.log(`📊 Всього в галереї: ${sortedSeries.length} серій / ${sortedPhotos.length} фото (${sortedYears.length} років)`);
         console.log(`\n✨ Галерею оновлено!`);
         return true;
     } catch (error) {

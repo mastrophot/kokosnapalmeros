@@ -27,6 +27,7 @@ ROOT_DIR = Path(__file__).resolve().parent
 INSTAGRAM_USERNAME = os.getenv("INSTAGRAM_USERNAME", "kokosnapalmeros")
 IMAGES_DIR = ROOT_DIR / "images"
 THUMBS_DIR = ROOT_DIR / "thumbs"
+AVATAR_FILE = IMAGES_DIR / "avatar.jpg"
 METADATA_FILE = ROOT_DIR / "gallery-data.json"
 MAX_POSTS = 50
 DEFAULT_GRAPHQL_DOC_ID = "28858033960505345"
@@ -492,6 +493,18 @@ def download_instagram_photos(
     if not edges or not active_session:
         print(f"❌ Не вдалося отримати пости для @{username}.")
         return False
+
+    if not test_mode:
+        first_node = edges[0].get("node", {}) if edges else {}
+        user_obj = first_node.get("user") or first_node.get("owner") or {}
+        avatar_url = user_obj.get("profile_pic_url") if isinstance(user_obj, dict) else None
+        if isinstance(avatar_url, str) and is_safe_media_url(avatar_url):
+            avatar_bytes = download_jpeg(active_session, avatar_url)
+            if avatar_bytes and (not AVATAR_FILE.is_file() or AVATAR_FILE.read_bytes() != avatar_bytes):
+                tmp_avatar = AVATAR_FILE.with_suffix(".jpg.tmp")
+                tmp_avatar.write_bytes(avatar_bytes)
+                tmp_avatar.replace(AVATAR_FILE)
+                print("🖼️ Оновлено фото аватара профілю: images/avatar.jpg")
 
     processed = 0
     new_downloaded = 0

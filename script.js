@@ -3,10 +3,13 @@ document.addEventListener('DOMContentLoaded', () => {
         'січ', 'лют', 'бер', 'кві', 'тра', 'чер',
         'лип', 'сер', 'вер', 'жов', 'лис', 'гру'
     ];
+    const SVG_NS = 'http://www.w3.org/2000/svg';
 
     const gallery = document.querySelector('.gallery');
+    const brandHome = document.getElementById('brandHome');
     const backToTopBtn = document.getElementById('backToTop');
     const densityBtns = document.querySelectorAll('[data-set-density]');
+    const viewBtns = document.querySelectorAll('[data-set-view]');
     const yearPills = document.querySelectorAll('.year-pill');
 
     // 1. Щільність сітки (comfy / compact)
@@ -35,7 +38,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // 2. Форматування доступного підпису (alt / aria-label) з імені файлу
+    // 2. Форматування підписів та групування серій із бандла
+    const getSeriesKey = (filename) => filename.replace(/_\d+\.jpg$/i, '').replace(/\.jpg$/i, '');
+
     const formatPhotoLabel = (filename) => {
         const m = filename.match(/^(\d{4})[-_](\d{2})[-_](\d{2})/);
         if (!m) return 'Фото @kokosnapalmeros';
@@ -46,6 +51,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const numMatch = filename.match(/_(\d+)\.jpg$/i);
         const suffix = numMatch ? `, кадр ${numMatch[1]}` : '';
         return `Фото @kokosnapalmeros — ${day} ${monthName} ${year}${suffix}`;
+    };
+
+    const formatSeriesLabel = (filename, count) => {
+        const m = filename.match(/^(\d{4})[-_](\d{2})[-_](\d{2})/);
+        if (!m) {
+            return count > 1 ? `Серія @kokosnapalmeros (${count} фото)` : 'Фото @kokosnapalmeros';
+        }
+        const year = m[1];
+        const monthIdx = parseInt(m[2], 10) - 1;
+        const day = parseInt(m[3], 10);
+        const monthName = MONTHS_UK[monthIdx] || m[2];
+        if (count > 1) {
+            return `Серія @kokosnapalmeros — ${day} ${monthName} ${year} (${count} фото)`;
+        }
+        return `Фото @kokosnapalmeros — ${day} ${monthName} ${year}`;
     };
 
     const parseEntry = (rawEntry) => {
@@ -60,7 +80,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     };
 
-    // Плавна поява кадру строго ПІСЛЯ декодування JPEG (нуль фрізів на порожніх картках)
     const bindImageReveal = (img) => {
         if (img.complete && img.naturalWidth > 0) {
             img.classList.add('is-loaded');
@@ -81,28 +100,96 @@ document.addEventListener('DOMContentLoaded', () => {
         gallery.querySelectorAll('.gallery-item').forEach(bindImageReveal);
     }
 
-    // 3. Нескінченний скрол, кеш слайдів та фільтрація за роками (?year=YYYY)
     const allRawItems = Array.isArray(window.GALLERY_ALL) ? window.GALLERY_ALL : [];
-    const allParsed = allRawItems.map(parseEntry);
-    const validYears = new Set(Array.from(yearPills).map(p => p.dataset.year).filter(Boolean));
+    const allFrames = allRawItems.map(parseEntry);
 
-    let activeYear = 'all';
-    let filteredList = allParsed;
+    const seriesMap = new Map();
+    const allSeries = [];
+    allFrames.forEach(frame => {
+        const key = getSeriesKey(frame.filename);
+        let group = seriesMap.get(key);
+        if (!group) {
+            group = {
+                key,
+                year: frame.year,
+                cover: frame,
+                items: [],
+                label: '',
+            };
+            seriesMap.set(key, group);
+            allSeries.push(group);
+        }
+        group.items.push(frame);
+    });
+    allSeries.forEach(group => {
+        group.label = formatSeriesLabel(group.cover.filename, group.items.length);
+    });
+
+    // 3. Стан подачі (series | frames) та фільтрації за роками (?year=YYYY)
+    const validYears = new Set(Array.from(yearPills).map(p => p.dataset.year).filter(Boolean));
+    const urlParams = new URLSearchParams(window.location.search);
+    const initialUrlYear = urlParams.get('year');
+
+    let viewMode = localStorage.getItem('kokos_view') === 'frames' ? 'frames' : 'series';
+    if (urlParams.get('view') === 'frames') viewMode = 'frames';
+    if (urlParams.get('view') === 'series') viewMode = 'series';
+
+    let activeYear = initialUrlYear && validYears.has(initialUrlYear) ? initialUrlYear : 'all';
+    let filteredList = [];
     const initialDomCount = gallery ? gallery.querySelectorAll('.gallery-item-wrapper').length : 0;
     let currentIndex = initialDomCount;
     const BATCH_SIZE = 24;
 
+    const createSeriesBadge = (count) => {
+        const badge = document.createElement('span');
+        badge.className = 'series-badge';
+        badge.setAttribute('aria-hidden', 'true');
+
+        const svg = document.createElementNS(SVG_NS, 'svg');
+        svg.setAttribute('class', 'series-icon');
+        svg.setAttribute('viewBox', '0 0 16 16');
+        svg.setAttribute('fill', 'none');
+        svg.setAttribute('stroke', 'currentColor');
+        svg.setAttribute('stroke-width', '1.65');
+        svg.setAttribute('stroke-linecap', 'round');
+        svg.setAttribute('stroke-linejoin', 'round');
+
+        const rect = document.createElementNS(SVG_NS, 'rect');
+        rect.setAttribute('x', '2');
+        rect.setAttribute('y', '4.5');
+        rect.setAttribute('width', '9.5');
+        rect.setAttribute('height', '9.5');
+        rect.setAttribute('rx', '2');
+
+        const path = document.createElementNS(SVG_NS, 'path');
+        path.setAttribute('d', 'M5.5 2h6.5a2 2 0 0 1 2 2v6.5');
+
+        svg.appendChild(rect);
+        svg.appendChild(path);
+
+        const num = document.createElement('span');
+        num.textContent = String(count);
+
+        badge.appendChild(svg);
+        badge.appendChild(num);
+        return badge;
+    };
+
     const createCardElement = (entry, listIndex, eager = false) => {
+        const isSeries = viewMode === 'series';
+        const media = isSeries ? entry.cover : entry;
+        const label = entry.label;
+
         const link = document.createElement('a');
-        link.href = entry.fullSrc;
+        link.href = media.fullSrc;
         link.dataset.index = String(listIndex);
         link.dataset.year = entry.year;
-        link.setAttribute('aria-label', entry.label);
+        link.setAttribute('aria-label', label);
         link.className = 'gallery-item-wrapper';
 
         const img = document.createElement('img');
-        img.src = entry.thumbSrc;
-        img.alt = entry.label;
+        img.src = media.thumbSrc;
+        img.alt = label;
         img.className = 'gallery-item';
         img.decoding = 'async';
         if (eager) {
@@ -111,9 +198,52 @@ document.addEventListener('DOMContentLoaded', () => {
             img.loading = 'lazy';
         }
         bindImageReveal(img);
-
         link.appendChild(img);
+
+        if (isSeries && entry.items.length > 1) {
+            link.appendChild(createSeriesBadge(entry.items.length));
+        }
+
         return link;
+    };
+
+    const computeFilteredList = () => {
+        const source = viewMode === 'frames' ? allFrames : allSeries;
+        return activeYear === 'all'
+            ? source
+            : source.filter(item => item.year === activeYear);
+    };
+
+    const syncControlsState = () => {
+        viewBtns.forEach(btn => {
+            const isActive = btn.dataset.setView === viewMode;
+            btn.classList.toggle('active', isActive);
+            btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        });
+
+        yearPills.forEach(pill => {
+            const isSelected = pill.dataset.year === activeYear;
+            pill.classList.toggle('active', isSelected);
+            pill.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+            const countEl = pill.querySelector('.year-count');
+            if (countEl) {
+                const nextCount = viewMode === 'frames'
+                    ? pill.dataset.framesCount
+                    : pill.dataset.seriesCount;
+                if (nextCount) countEl.textContent = nextCount;
+            }
+        });
+    };
+
+    const syncUrlState = () => {
+        const url = new URL(window.location.href);
+        if (activeYear === 'all') {
+            url.searchParams.delete('year');
+        } else {
+            url.searchParams.set('year', activeYear);
+        }
+        url.searchParams.delete('view');
+        window.history.replaceState(null, '', url.pathname + url.search + url.hash);
     };
 
     const loadMorePhotos = () => {
@@ -132,53 +262,69 @@ document.addEventListener('DOMContentLoaded', () => {
         currentIndex += BATCH_SIZE;
     };
 
-    const applyYearFilter = (year, updateUrl = true) => {
-        const targetYear = validYears.has(year) ? year : 'all';
-        if (targetYear === activeYear) return;
-
-        activeYear = targetYear;
-        yearPills.forEach(p => {
-            const isSelected = p.dataset.year === targetYear;
-            p.classList.toggle('active', isSelected);
-            p.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
-        });
-
-        filteredList = targetYear === 'all'
-            ? allParsed
-            : allParsed.filter(item => item.year === targetYear);
-
+    const rebuildGallery = (scrollToTop = false) => {
+        filteredList = computeFilteredList();
+        syncControlsState();
         if (gallery) {
-            gallery.innerHTML = '';
+            gallery.textContent = '';
             currentIndex = 0;
             loadMorePhotos();
         }
-
-        if (updateUrl) {
-            const url = new URL(window.location.href);
-            if (targetYear === 'all') {
-                url.searchParams.delete('year');
-            } else {
-                url.searchParams.set('year', targetYear);
-            }
-            window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+        if (scrollToTop) {
             window.scrollTo(0, 0);
         }
     };
 
-    if (yearPills.length > 0 && allParsed.length > 0) {
-        yearPills.forEach(pill => {
-            pill.addEventListener('click', () => {
-                applyYearFilter(pill.dataset.year || 'all', true);
-            });
-        });
-
-        const urlYear = new URLSearchParams(window.location.search).get('year');
-        if (urlYear && urlYear !== 'all' && validYears.has(urlYear)) {
-            applyYearFilter(urlYear, false);
+    if (allFrames.length > 0) {
+        if (viewMode === 'series' && activeYear === 'all') {
+            filteredList = allSeries;
+            syncControlsState();
+        } else {
+            rebuildGallery(false);
         }
     }
 
-    // 4. Високопродуктивний лайтбокс Fancybox 5 (нуль DOM-білду Thumbs на 1475 нод, чисті об'єкти слайдів, рідні f-fade класи)
+    viewBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const nextView = btn.dataset.setView === 'frames' ? 'frames' : 'series';
+            if (nextView === viewMode) return;
+            viewMode = nextView;
+            localStorage.setItem('kokos_view', viewMode);
+            rebuildGallery(true);
+        });
+    });
+
+    yearPills.forEach(pill => {
+        pill.addEventListener('click', () => {
+            const targetYear = validYears.has(pill.dataset.year) ? pill.dataset.year : 'all';
+            if (targetYear === activeYear) {
+                if (window.scrollY > 0) {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+                return;
+            }
+            activeYear = targetYear;
+            syncUrlState();
+            rebuildGallery(true);
+        });
+    });
+
+    // Клік на логотип у шапці скидає фільтр року і повертає на початок архіву
+    if (brandHome) {
+        brandHome.addEventListener('click', (e) => {
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+            e.preventDefault();
+            if (activeYear !== 'all') {
+                activeYear = 'all';
+                syncUrlState();
+                rebuildGallery(true);
+            } else if (window.scrollY > 0) {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        });
+    }
+
+    // 4. Високопродуктивний лайтбокс Fancybox 5 (Серії відкривають карусель поста, Кадри — весь зріз)
     if (gallery) {
         gallery.addEventListener('click', (e) => {
             if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
@@ -187,15 +333,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
             e.preventDefault();
             const parsedIndex = parseInt(card.dataset.index || '0', 10);
-            const startIndex = Number.isNaN(parsedIndex)
+            const safeIndex = Number.isNaN(parsedIndex)
                 ? 0
                 : Math.max(0, Math.min(parsedIndex, filteredList.length - 1));
 
-            const slides = filteredList.map(item => ({
-                src: item.fullSrc,
-                type: 'image',
-                alt: item.label,
-            }));
+            let slides;
+            let startIndex;
+
+            if (viewMode === 'series') {
+                const group = filteredList[safeIndex];
+                slides = group.items.map(item => ({
+                    src: item.fullSrc,
+                    type: 'image',
+                    alt: item.label,
+                }));
+                startIndex = 0;
+            } else {
+                slides = filteredList.map(item => ({
+                    src: item.fullSrc,
+                    type: 'image',
+                    alt: item.label,
+                }));
+                startIndex = safeIndex;
+            }
 
             window.Fancybox.show(slides, {
                 startIndex,
@@ -208,6 +368,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 caption: () => '',
                 Carousel: {
                     transition: 'crossfade',
+                    infinite: false,
                 },
                 Images: {
                     zoom: false,
@@ -228,7 +389,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 5. Sentinel для автоматичного довантаження при скролі
-    if (gallery && allParsed.length > 0) {
+    if (gallery && allFrames.length > 0) {
         const sentinel = document.createElement('div');
         sentinel.className = 'scroll-sentinel';
         sentinel.setAttribute('aria-hidden', 'true');
@@ -246,7 +407,7 @@ document.addEventListener('DOMContentLoaded', () => {
         scrollObserver.observe(sentinel);
     }
 
-    // 6. Кнопка «Нагору» (без зайвих DOM-мутацій на кожному пікселі скролу)
+    // 6. Кнопка «Нагору»
     if (backToTopBtn) {
         let isBtnVisible = false;
         window.addEventListener('scroll', () => {
