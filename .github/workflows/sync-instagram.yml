@@ -2,12 +2,12 @@ name: Sync Instagram Photos
 
 on:
   schedule:
-    - cron: '0 4 * * *'  # Запуск щодня о 04:00 UTC
-  workflow_dispatch:  # Ручний запуск для тестування
+    - cron: '0 4 * * *'  # Щодня о 04:00 UTC
+  workflow_dispatch:
 
 concurrency:
   group: sync-instagram-main
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -15,43 +15,30 @@ permissions:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    
+    timeout-minutes: 15
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-          
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          
-      - name: Install Python dependencies
-        run: |
-          pip install -r requirements.txt
+          python-version: '3.12'
+          cache: 'pip'
 
-      - name: Install Node.js dependencies
-        run: |
-          npm install
+      - name: Install Python dependencies
+        run: pip install --disable-pip-version-check -r requirements.txt
 
       - name: Download Instagram photos
         env:
-          IG_USERNAME: ${{ secrets.IG_USERNAME }}
-          IG_PASSWORD: ${{ secrets.IG_PASSWORD }}
           IG_SESSION: ${{ secrets.IG_SESSION }}
           INSTAGRAM_USERNAME: ${{ vars.INSTAGRAM_USERNAME || 'kokosnapalmeros' }}
-        run: |
-          python3 sync-instagram.py --limit 50
-          
-      - name: Update gallery HTML
-        run: |
-          node update-gallery.js
-          
+        run: python3 sync-instagram.py --limit 50
+
+      - name: Update gallery HTML and bundle
+        run: node update-gallery.js
+
       - name: Commit and push changes
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
@@ -61,5 +48,6 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "🤖 Auto-sync: Update gallery from Instagram"
+            git pull --rebase origin main
             git push
           fi

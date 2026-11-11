@@ -1,21 +1,19 @@
 {
-    "name": "kokosnapalmeros-gallery",
-    "version": "1.0.0",
-    "description": "Automated Instagram photo gallery",
-    "scripts": {
-        "sync": "python3 sync-instagram.py",
-        "sync:test": "python3 sync-instagram.py --test --limit 3",
-        "update-gallery": "node update-gallery.js",
-        "build": "npm run sync && npm run update-gallery"
-    },
-    "keywords": [
-        "instagram",
-        "gallery",
-        "photography"
-    ],
-    "author": "kokosnapalmeros",
-    "license": "MIT",
-    "dependencies": {
-        "cheerio": "^1.0.0-rc.12"
-    }
+  "name": "kokosnapalmeros-gallery",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Automated Instagram photo archive for @kokosnapalmeros",
+  "scripts": {
+    "sync": "python3 sync-instagram.py",
+    "sync:test": "python3 sync-instagram.py --test --limit 3",
+    "update-gallery": "node update-gallery.js",
+    "build": "npm run sync && npm run update-gallery"
+  },
+  "keywords": [
+    "instagram",
+    "gallery",
+    "photography"
+  ],
+  "author": "kokosnapalmeros",
+  "license": "MIT"
 }

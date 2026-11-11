@@ -1,105 +1,64 @@
-# kokosnapalmeros - Автоматична Instagram Галерея
+# kokosnapalmeros — Візуальний Фотоархів
 
-Фотогалерея з автоматичною синхронізацією фото з Instagram профілю [@kokosnapalmeros](https://instagram.com/kokosnapalmeros).
+Статична веб-галерея з автоматичною щоденною синхронізацією фото з публічного Instagram-профілю [@kokosnapalmeros](https://www.instagram.com/kokosnapalmeros/) на базі GitHub Actions та GitHub Pages.
 
-Ця версія працює через **офіційний Instagram Graph API** (без неофіційного scraper), тому значно стабільніша для GitHub Actions.
+Живий сайт: https://mastrophot.github.io/kokosnapalmeros/
 
-## Швидкий старт
+## Архітектура
 
-### 1) Встановлення
+- **Дворівневий пайплайн синхронізації (`sync-instagram.py`):**
+  1. **Основний канал:** авторизований пагінований GraphQL-запит профілю (`IG_SESSION`) через `curl_cffi` з актуальною TLS-імперсонацією Chrome.
+  2. **Резервний канал:** анонімний парсинг HTML Relay Preloader без куків.
+- **Дворівневе зберігання зображень:**
+  - `images/` — некропнуті оригінали максимальної роздільної здатності з вирізаним другим потоком Ultra-HDR GainMap (`MPF` / `hdrgm`) для плавного рендеру без втрати якості SDR-кадру.
+  - `thumbs/` — оптимізовані легкі прев'ю (`640px`) для миттєвого завантаження сітки.
+- **Zero-dependency генератор статики (`update-gallery.js`):** працює на чистих вбудованих модулях Node.js (`fs`, `path`) без зовнішніх npm-пакетів, генеруючи `index.html` та компактний індекс `gallery-items.js`.
+- **Фронтенд (`script.js` + `styles.css`):** Vanilla JS/CSS, нескінченний скрол (`IntersectionObserver`), миттєва фільтрація за роками з синхронізацією у параметрі `?year=YYYY`, повноархівний лайтбокс Fancybox 5.0.36 із пінінгом SRI та строгим `Content-Security-Policy`.
+
+## Локальний запуск
 
 ```bash
-# Python залежностей немає (std lib), але команда безпечна:
+# Встановлення Python-залежності (curl_cffi)
 pip install -r requirements.txt
 
-# Node.js залежності для генерації HTML
-npm install
-```
-
-### 2) Налаштування змінних оточення (локально)
-
-```bash
-export IG_USER_ID="YOUR_IG_BUSINESS_ACCOUNT_ID"
-export IG_ACCESS_TOKEN="YOUR_PAGE_OR_USER_TOKEN"
-export INSTAGRAM_USERNAME="kokosnapalmeros"  # опційно
-```
-
-### 3) Синхронізація
-
-```bash
-# Завантажити останні 20 постів (тільки фото, без відео/reels)
-npm run sync
-
-# Тестовий режим (тільки metadata, без запису файлів)
+# Перевірка синхронізації без запису на диск
 npm run sync:test
 
-# Оновити HTML галерею
-npm run update-gallery
-
-# Повний цикл
+# Повна синхронізація нових постів та перегенерація HTML/JS
 npm run build
+
+# Перегенерація лише HTML та бандла з наявних фото
+npm run update-gallery
 ```
 
-## GitHub Actions (автоматично)
+## Автоматизація GitHub Actions
 
-Workflow `.github/workflows/sync-instagram.yml` запускається раз на 12 годин і робить:
-1. Завантаження фото через Graph API
-2. Генерацію `index.html` + `gallery-items.js`
-3. Commit + push змін
+Воркфлоу `.github/workflows/sync-instagram.yml` запускається щодня о `04:00 UTC` (або вручну через `workflow_dispatch`):
+1. Встановлює `curl_cffi` з кешем `pip`.
+2. Запускає `python3 sync-instagram.py --limit 50`.
+3. Оновлює `index.html` та `gallery-items.js` через `node update-gallery.js`.
+4. Робить коміт і `git push` лише за наявності реальних змін у файлах.
 
-### Required GitHub Secrets
+### Налаштування GitHub Secrets / Variables
 
-Додай у репозиторій:
-- `IG_USER_ID` - ID Instagram Business Account
-- `IG_ACCESS_TOKEN` - Access token для Graph API
+- Secret `IG_SESSION` *(рекомендовано)* — значення куки `sessionid` Instagram для стабільного доступу до GraphQL з IP-адрес GitHub Actions.
+- Variable `INSTAGRAM_USERNAME` *(опційно)* — за замовчуванням `kokosnapalmeros`.
 
-Опційно:
-- Repository variable `INSTAGRAM_USERNAME` (якщо не задано, використовується `kokosnapalmeros`)
-
-## Як отримати IG_USER_ID і IG_ACCESS_TOKEN (безкоштовно)
-
-Потрібно один раз налаштувати Meta:
-1. Instagram акаунт має бути `Professional` і прив'язаний до Facebook Page.
-2. Створи застосунок на Meta for Developers (тип `Business`).
-3. Отримай short-lived user token з правами `instagram_basic`, `pages_show_list`, `pages_read_engagement`.
-4. Обміняй на long-lived user token:
-
-```bash
-curl "https://graph.facebook.com/v22.0/oauth/access_token?grant_type=fb_exchange_token&client_id=$APP_ID&client_secret=$APP_SECRET&fb_exchange_token=$SHORT_LIVED_USER_TOKEN"
-```
-
-5. Отримай сторінки і page access token:
-
-```bash
-curl "https://graph.facebook.com/v22.0/me/accounts?access_token=$LONG_LIVED_USER_TOKEN"
-```
-
-6. Отримай IG user id:
-
-```bash
-curl "https://graph.facebook.com/v22.0/$PAGE_ID?fields=instagram_business_account&access_token=$PAGE_ACCESS_TOKEN"
-```
-
-7. Значення `instagram_business_account.id` використовуй як `IG_USER_ID`, а page token як `IG_ACCESS_TOKEN`.
-
-## Структура проекту
+## Структура проєкту
 
 ```text
 .
-├── images/              # Зображення
-├── index.html           # Сторінка галереї
-├── gallery-items.js     # Відкладене завантаження фото
-├── gallery-data.json    # Метадані постів
-├── sync-instagram.py    # Синхронізація через Graph API
-├── update-gallery.js    # Оновлення HTML
-└── .github/workflows/   # Автоматичний запуск
+├── images/                         # Повнорозмірні оригінали фото + background.jpg
+├── thumbs/                         # Легкі прев'ю (640px) для швидкої сітки
+├── gallery-data.json               # Метадані синхронізованих постів
+├── gallery-items.js                # Згенерований компактний індекс усіх кадрів
+├── index.html                      # Згенерована головна сторінка
+├── styles.css                      # Дизайн-система та адаптивна сітка
+├── script.js                       # Фільтрація за роками, скрол та Fancybox 5
+├── sync-instagram.py               # Скрипт синхронізації з Instagram
+├── update-gallery.js               # Генератор index.html та gallery-items.js
+└── .github/workflows/              # Конфігурація щоденного авто-синку
 ```
-
-## Важливо
-
-- Скрипт завантажує тільки `IMAGE` і фото з `CAROUSEL_ALBUM`.
-- `VIDEO`/`REELS` пропускаються.
-- Не зберігай токени у файлах репозиторію, тільки в GitHub Secrets.
 
 ## Ліцензія
 
