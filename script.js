@@ -60,20 +60,28 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     };
 
-    // 3. Плавна поява карток при скролі
-    const fadeObserver = new IntersectionObserver((entries, observer) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                entry.target.classList.remove('fade-init');
-                observer.unobserve(entry.target);
+    // Плавна поява кадру строго ПІСЛЯ декодування JPEG (нуль фрізів на порожніх картках)
+    const bindImageReveal = (img) => {
+        if (img.complete && img.naturalWidth > 0) {
+            img.classList.add('is-loaded');
+            return;
+        }
+        const reveal = () => img.classList.add('is-loaded');
+        img.addEventListener('load', () => {
+            if (typeof img.decode === 'function') {
+                img.decode().then(reveal, reveal);
+            } else {
+                reveal();
             }
-        });
-    }, {
-        threshold: 0,
-        rootMargin: '0px 0px 100px 0px',
-    });
+        }, { once: true });
+        img.addEventListener('error', reveal, { once: true });
+    };
 
-    // 4. Нескінченний скрол та фільтрація за роками (із синхронізацією в URL ?year=YYYY)
+    if (gallery) {
+        gallery.querySelectorAll('.gallery-item').forEach(bindImageReveal);
+    }
+
+    // 3. Нескінченний скрол, кеш слайдів та фільтрація за роками (?year=YYYY)
     const allRawItems = Array.isArray(window.GALLERY_ALL) ? window.GALLERY_ALL : [];
     const allParsed = allRawItems.map(parseEntry);
     const validYears = new Set(Array.from(yearPills).map(p => p.dataset.year).filter(Boolean));
@@ -90,7 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
         link.dataset.index = String(listIndex);
         link.dataset.year = entry.year;
         link.setAttribute('aria-label', entry.label);
-        link.className = eager ? 'gallery-item-wrapper' : 'gallery-item-wrapper fade-init';
+        link.className = 'gallery-item-wrapper';
 
         const img = document.createElement('img');
         img.src = entry.thumbSrc;
@@ -102,6 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             img.loading = 'lazy';
         }
+        bindImageReveal(img);
 
         link.appendChild(img);
         return link;
@@ -112,20 +121,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const fragment = document.createDocumentFragment();
         const nextBatch = filteredList.slice(currentIndex, currentIndex + BATCH_SIZE);
-        const toObserve = [];
 
         nextBatch.forEach((entry, idx) => {
             const listIndex = currentIndex + idx;
             const isEager = currentIndex === 0 && idx < 6;
-            const card = createCardElement(entry, listIndex, isEager);
-            fragment.appendChild(card);
-            if (!isEager) {
-                toObserve.push(card);
-            }
+            fragment.appendChild(createCardElement(entry, listIndex, isEager));
         });
 
         gallery.appendChild(fragment);
-        toObserve.forEach(el => fadeObserver.observe(el));
         currentIndex += BATCH_SIZE;
     };
 
@@ -158,7 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 url.searchParams.set('year', targetYear);
             }
             window.history.replaceState(null, '', url.pathname + url.search + url.hash);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            window.scrollTo(0, 0);
         }
     };
 
@@ -175,7 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 5. Повноцінний лайтбокс Fancybox 5 по всьому відфільтрованому архіву (без обриву на межі DOM-батча)
+    // 4. Високопродуктивний лайтбокс Fancybox 5 (нуль DOM-білду Thumbs на 1475 нод, чисті об'єкти слайдів, рідні f-fade класи)
     if (gallery) {
         gallery.addEventListener('click', (e) => {
             if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
@@ -188,45 +191,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? 0
                 : Math.max(0, Math.min(parsedIndex, filteredList.length - 1));
 
-            const renderedCards = gallery.querySelectorAll('.gallery-item-wrapper');
-            const slides = filteredList.map((item, idx) => ({
+            const slides = filteredList.map(item => ({
                 src: item.fullSrc,
-                thumbSrc: item.thumbSrc,
                 type: 'image',
                 alt: item.label,
-                triggerEl: idx < renderedCards.length ? renderedCards[idx] : undefined,
             }));
 
             window.Fancybox.show(slides, {
                 startIndex,
                 animated: true,
-                showClass: 'fancybox-fadeIn',
-                hideClass: 'fancybox-fadeOut',
+                showClass: 'f-fadeIn',
+                hideClass: 'f-fadeOut',
                 dragToClose: true,
                 compact: false,
+                placeFocusBack: false,
                 caption: () => '',
+                Carousel: {
+                    transition: 'crossfade',
+                },
                 Images: {
-                    zoom: true,
+                    zoom: false,
                     Panzoom: {
                         maxScale: 3.5,
                     },
                 },
-                Thumbs: {
-                    type: 'modern',
-                    autoStart: false,
-                },
+                Thumbs: false,
                 Toolbar: {
                     display: {
                         left: ['infobar'],
                         middle: [],
-                        right: ['iterateZoom', 'thumbs', 'fullscreen', 'close'],
+                        right: ['iterateZoom', 'fullscreen', 'close'],
                     },
                 },
             });
         });
     }
 
-    // 6. Sentinel для автоматичного довантаження при скролі
+    // 5. Sentinel для автоматичного довантаження при скролі
     if (gallery && allParsed.length > 0) {
         const sentinel = document.createElement('div');
         sentinel.className = 'scroll-sentinel';
@@ -238,17 +239,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 loadMorePhotos();
             }
         }, {
-            rootMargin: '600px 0px',
+            rootMargin: '700px 0px',
             threshold: 0,
         });
 
         scrollObserver.observe(sentinel);
     }
 
-    // 7. Кнопка «Нагору»
+    // 6. Кнопка «Нагору» (без зайвих DOM-мутацій на кожному пікселі скролу)
     if (backToTopBtn) {
+        let isBtnVisible = false;
         window.addEventListener('scroll', () => {
-            backToTopBtn.classList.toggle('visible', window.scrollY > 700);
+            const shouldShow = window.scrollY > 700;
+            if (shouldShow !== isBtnVisible) {
+                isBtnVisible = shouldShow;
+                backToTopBtn.classList.toggle('visible', shouldShow);
+            }
         }, { passive: true });
 
         backToTopBtn.addEventListener('click', () => {

@@ -1,12 +1,12 @@
 /* ==========================================================================
    kokosnapalmeros — Visual Archive Design System
-   Surface: Explore (Dark Obsidian + Liquid Glass Chrome, Zero-Repaint 120fps)
+   Surface: Explore (Dark Obsidian, Zero-Blur Readback, No Layer Explosion)
    ========================================================================== */
 
 :root {
     --bg-canvas: #09090b;
     --bg-elevated: #121216;
-    --bg-glass: rgba(14, 14, 18, 0.76);
+    --bg-header: rgba(9, 9, 11, 0.96);
     --bg-pill: rgba(255, 255, 255, 0.06);
     --bg-pill-hover: rgba(255, 255, 255, 0.12);
     --bg-pill-active: #ffffff;
@@ -15,7 +15,7 @@
     --text-muted: #71717a;
     --text-active: #09090b;
     --border-subtle: rgba(255, 255, 255, 0.08);
-    --border-hover: rgba(255, 255, 255, 0.22);
+    --border-hover: rgba(255, 255, 255, 0.24);
     --accent-ig: #e1306c;
     --radius-card: 14px;
     --radius-pill: 9999px;
@@ -41,7 +41,6 @@ body[data-density="compact"] {
 html {
     background-color: var(--bg-canvas);
     color-scheme: dark;
-    scroll-behavior: smooth;
 }
 
 body {
@@ -61,16 +60,14 @@ body::before {
     position: fixed;
     inset: 0;
     background-image:
-        linear-gradient(180deg, rgba(9, 9, 11, 0.52) 0%, rgba(9, 9, 11, 0.72) 100%),
+        linear-gradient(180deg, rgba(9, 9, 11, 0.58) 0%, rgba(9, 9, 11, 0.78) 100%),
         url('./images/background.jpg');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
     z-index: -1;
     pointer-events: none;
-    transform: translate3d(0, 0, 0);
-    will-change: transform;
-    backface-visibility: hidden;
+    transform: translateZ(0);
 }
 
 .icon-svg {
@@ -81,17 +78,14 @@ body::before {
 }
 
 /* ==========================================================================
-   Sticky Liquid-Glass Header
+   Sticky Header (Zero Backdrop-Filter Offscreen Pass)
    ========================================================================== */
 .site-header {
     position: sticky;
     top: 0;
     z-index: 40;
-    background: var(--bg-glass);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    background: var(--bg-header);
     border-bottom: 1px solid var(--border-subtle);
-    transition: background 0.25s ease;
 }
 
 .header-inner {
@@ -123,7 +117,7 @@ body::before {
     width: 38px;
     height: 38px;
     border-radius: 50%;
-    background: linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04));
+    background: rgba(255, 255, 255, 0.08);
     border: 1px solid var(--border-subtle);
     display: flex;
     align-items: center;
@@ -177,7 +171,6 @@ body::before {
     padding: 0.36rem 0.68rem;
     border-radius: var(--radius-pill);
     cursor: pointer;
-    transition: color 0.18s ease, background 0.18s ease;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -207,7 +200,6 @@ body::before {
     text-decoration: none;
     font-size: 0.82rem;
     font-weight: 550;
-    transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 }
 
 .ig-btn .icon-svg {
@@ -219,7 +211,6 @@ body::before {
 .ig-btn:hover {
     background: var(--bg-pill-hover);
     border-color: var(--border-hover);
-    transform: translateY(-1px);
 }
 
 /* ==========================================================================
@@ -253,7 +244,6 @@ body::before {
     border-radius: var(--radius-pill);
     cursor: pointer;
     white-space: nowrap;
-    transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
@@ -280,7 +270,7 @@ body::before {
 }
 
 /* ==========================================================================
-   Gallery Grid & Cards
+   Gallery Grid & Cards (Tiled Layering at Rest, Single Layer on Hover)
    ========================================================================== */
 #portfolio {
     max-width: 1520px;
@@ -305,14 +295,6 @@ body::before {
     background-color: var(--bg-elevated);
     border: 1px solid var(--border-subtle);
     text-decoration: none;
-    content-visibility: auto;
-    contain-intrinsic-size: auto 420px;
-    transition: opacity 0.35s ease-out, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.25s ease;
-}
-
-.gallery-item-wrapper.fade-init {
-    opacity: 0;
-    transform: translateY(14px);
 }
 
 .gallery-item {
@@ -321,7 +303,12 @@ body::before {
     height: 100%;
     object-fit: cover;
     object-position: center;
-    transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+    opacity: 0;
+    transition: opacity 0.2s ease-out, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.gallery-item.is-loaded {
+    opacity: 1;
 }
 
 .scroll-sentinel {
@@ -334,7 +321,8 @@ body::before {
         border-color: var(--border-hover);
     }
     .gallery-item-wrapper:hover .gallery-item {
-        transform: scale(1.035);
+        will-change: transform;
+        transform: scale(1.03);
     }
 }
 
@@ -349,9 +337,7 @@ body::before {
     width: 44px;
     height: 44px;
     border-radius: 50%;
-    background: rgba(24, 24, 30, 0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    background: #16161d;
     border: 1px solid var(--border-hover);
     color: var(--text-primary);
     cursor: pointer;
@@ -360,28 +346,30 @@ body::before {
     justify-content: center;
     opacity: 0;
     pointer-events: none;
-    transform: translateY(10px);
-    transition: opacity 0.25s ease, transform 0.25s ease, background 0.2s ease;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    transform: translate3d(0, 8px, 0);
+    transition: opacity 0.18s ease-out, transform 0.18s ease-out;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
 }
 
 .back-to-top.visible {
     opacity: 1;
     pointer-events: auto;
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0);
 }
 
 .back-to-top:hover {
-    background: rgba(42, 42, 52, 0.95);
+    background: #242430;
 }
 
 /* ==========================================================================
-   Fancybox 5 Customizations (Clean Editorial Lightbox)
+   Fancybox 5 Customizations (Solid High-FPS Backdrop, Fast Transitions)
    ========================================================================== */
+.fancybox__container {
+    --f-transition-duration: 0.16s;
+}
+
 .fancybox__backdrop {
-    background: rgba(6, 6, 8, 0.94);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    background: rgba(7, 7, 10, 0.96);
 }
 
 /* ==========================================================================
@@ -446,6 +434,5 @@ body::before {
     *, *::before, *::after {
         animation-duration: 0.01ms !important;
         transition-duration: 0.01ms !important;
-        scroll-behavior: auto !important;
     }
 }

@@ -146,7 +146,7 @@ function updateHTML(galleryData) {
                 : 'loading="lazy" decoding="async"';
 
             return `          <a href="${fullSrc}" data-index="${idx}" data-year="${year}" aria-label="${safeLabel}" class="gallery-item-wrapper">
-            <img src="${thumbSrc}" alt="${safeLabel}" class="gallery-item" ${loadAttrs}>
+            <img src="${thumbSrc}" alt="${safeLabel}" class="gallery-item is-loaded" ${loadAttrs}>
           </a>`;
         }).join("\n");
 
