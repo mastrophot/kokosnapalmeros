@@ -7,7 +7,7 @@
     --bg-canvas: #09090b;
     --bg-elevated: #121216;
     --bg-header: rgba(9, 9, 11, 0.94);
-    --header-h: 109px;
+    --header-h: 136px;
     --bg-pill: rgba(255, 255, 255, 0.08);
     --bg-pill-hover: rgba(255, 255, 255, 0.14);
     --bg-pill-active: #ffffff;
@@ -15,12 +15,12 @@
     --text-secondary: #a1a1aa;
     --text-muted: #71717a;
     --text-active: #09090b;
-    --border-subtle: rgba(255, 255, 255, 0.07);
+    --border-subtle: rgba(255, 255, 255, 0.08);
     --border-hover: rgba(255, 255, 255, 0.24);
     --accent-ig: #e1306c;
-    --radius-card: 12px;
+    --radius-card: 14px;
     --radius-pill: 9999px;
-    --grid-gap: 14px;
+    --grid-gap: 16px;
     --grid-cols: 3;
     --card-aspect: 4 / 5;
 }
@@ -28,8 +28,8 @@
 /* Щільний режим (Compact 4-Column Contact Sheet) */
 body[data-density="compact"] {
     --grid-cols: 4;
-    --grid-gap: 8px;
-    --radius-card: 9px;
+    --grid-gap: 10px;
+    --radius-card: 10px;
 }
 
 * {
@@ -78,8 +78,8 @@ body {
 
 .icon-svg {
     display: block;
-    width: 16px;
-    height: 16px;
+    width: 19px;
+    height: 19px;
     flex-shrink: 0;
 }
 
@@ -97,26 +97,26 @@ body {
 }
 
 .header-inner {
-    max-width: 1520px;
+    max-width: 1740px;
     margin: 0 auto;
-    padding: 0.85rem 1.5rem 0.65rem;
+    padding: 1.05rem 2rem 0.85rem;
     display: flex;
     flex-direction: column;
-    gap: 0.7rem;
+    gap: 0.85rem;
 }
 
 .header-top {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
+    gap: 1.2rem;
     flex-wrap: wrap;
 }
 
 .brand {
     display: inline-flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.95rem;
     text-decoration: none;
     color: var(--text-primary);
 }
@@ -126,13 +126,13 @@ body {
 }
 
 .brand-avatar {
-    width: 38px;
-    height: 38px;
+    width: 48px;
+    height: 48px;
     border-radius: 50%;
     object-fit: cover;
     display: block;
     background: var(--bg-elevated);
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14);
+    box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.16);
     flex-shrink: 0;
 }
 
@@ -140,7 +140,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.95rem;
+    font-size: 1.15rem;
     font-weight: 700;
     letter-spacing: -0.02em;
 }
@@ -148,11 +148,12 @@ body {
 .brand-text {
     display: flex;
     flex-direction: column;
+    gap: 2px;
 }
 
 .brand-title {
-    font-size: 1.2rem;
-    font-weight: 650;
+    font-size: 1.5rem;
+    font-weight: 700;
     letter-spacing: -0.02em;
     line-height: 1.15;
     color: var(--text-primary);
@@ -160,7 +161,7 @@ body {
 }
 
 .brand-subtitle {
-    font-size: 0.76rem;
+    font-size: 0.92rem;
     color: var(--text-secondary);
     font-variant-numeric: tabular-nums;
 }
@@ -168,7 +169,7 @@ body {
 .header-actions {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.7rem;
 }
 
 .control-group {
@@ -177,7 +178,7 @@ body {
     background: var(--bg-pill);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-pill);
-    padding: 2px;
+    padding: 3px;
 }
 
 .ctrl-btn {
@@ -186,15 +187,15 @@ body {
     background: transparent;
     color: var(--text-secondary);
     font-family: inherit;
-    font-size: 0.78rem;
-    font-weight: 560;
-    padding: 0.34rem 0.7rem;
+    font-size: 0.94rem;
+    font-weight: 580;
+    padding: 0.48rem 1rem;
     border-radius: var(--radius-pill);
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 32px;
+    min-height: 40px;
     user-select: none;
     white-space: nowrap;
 }
@@ -204,28 +205,28 @@ body {
 }
 
 .ctrl-btn.active {
-    background: rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.18);
     color: var(--text-primary);
 }
 
 .ig-btn {
     display: inline-flex;
     align-items: center;
-    gap: 0.45rem;
-    padding: 0.42rem 0.9rem;
-    min-height: 36px;
+    gap: 0.55rem;
+    padding: 0.52rem 1.15rem;
+    min-height: 44px;
     border-radius: var(--radius-pill);
     background: var(--bg-pill);
     border: 1px solid var(--border-subtle);
     color: var(--text-primary);
     text-decoration: none;
-    font-size: 0.82rem;
-    font-weight: 550;
+    font-size: 0.95rem;
+    font-weight: 580;
 }
 
 .ig-btn .icon-svg {
-    width: 17px;
-    height: 17px;
+    width: 20px;
+    height: 20px;
     color: var(--accent-ig);
 }
 
@@ -240,7 +241,7 @@ body {
 .year-nav {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.55rem;
     overflow-x: auto;
     scrollbar-width: none;
     -ms-overflow-style: none;
@@ -258,17 +259,17 @@ body {
     background: var(--bg-pill);
     color: var(--text-secondary);
     font-family: inherit;
-    font-size: 0.8rem;
-    font-weight: 550;
+    font-size: 0.95rem;
+    font-weight: 570;
     font-variant-numeric: tabular-nums;
-    padding: 0.34rem 0.78rem;
+    padding: 0.46rem 1.05rem;
     border-radius: var(--radius-pill);
     cursor: pointer;
     white-space: nowrap;
     display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
-    min-height: 32px;
+    gap: 0.42rem;
+    min-height: 40px;
     flex-shrink: 0;
 }
 
@@ -281,13 +282,13 @@ body {
     background: var(--bg-pill-active);
     color: var(--text-active);
     border-color: var(--bg-pill-active);
-    font-weight: 650;
+    font-weight: 680;
 }
 
 .year-count {
-    font-size: 0.7rem;
-    opacity: 0.65;
-    font-weight: 500;
+    font-size: 0.82rem;
+    opacity: 0.72;
+    font-weight: 550;
 }
 
 /* ==========================================================================
@@ -299,9 +300,9 @@ main {
 }
 
 #portfolio {
-    max-width: 1520px;
+    max-width: 1740px;
     margin: 0 auto;
-    padding: calc(var(--header-h) + 1.25rem) 1.5rem 4rem;
+    padding: calc(var(--header-h) + 1.5rem) 2rem 4.5rem;
 }
 
 .gallery {
@@ -349,36 +350,36 @@ main {
 /* Індикатор багатокадрової серії (нуль backdrop-filter) */
 .series-badge {
     position: absolute;
-    top: 10px;
-    right: 10px;
+    top: 12px;
+    right: 12px;
     z-index: 2;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 4px 8px;
+    gap: 5px;
+    padding: 5.5px 10.5px;
     border-radius: var(--radius-pill);
-    background: rgba(9, 9, 11, 0.72);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+    background: rgba(9, 9, 11, 0.76);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
     color: #f4f4f6;
-    font-size: 0.72rem;
-    font-weight: 600;
+    font-size: 0.84rem;
+    font-weight: 650;
     line-height: 1;
     font-variant-numeric: tabular-nums;
     pointer-events: none;
 }
 
 .series-icon {
-    width: 12px;
-    height: 12px;
+    width: 14px;
+    height: 14px;
     flex-shrink: 0;
     opacity: 0.92;
 }
 
 body[data-density="compact"] .series-badge {
-    top: 8px;
-    right: 8px;
-    padding: 3.5px 7px;
-    font-size: 0.69rem;
+    top: 10px;
+    right: 10px;
+    padding: 4.5px 9px;
+    font-size: 0.78rem;
 }
 
 .scroll-sentinel {
@@ -401,11 +402,11 @@ body[data-density="compact"] .series-badge {
    ========================================================================== */
 .back-to-top {
     position: fixed;
-    right: 1.25rem;
-    bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+    right: 1.6rem;
+    bottom: calc(1.6rem + env(safe-area-inset-bottom, 0px));
     z-index: 35;
-    width: 44px;
-    height: 44px;
+    width: 52px;
+    height: 52px;
     border-radius: 50%;
     background: #16161d;
     border: 1px solid var(--border-hover);
@@ -418,7 +419,12 @@ body[data-density="compact"] .series-badge {
     pointer-events: none;
     transform: translate3d(0, 8px, 0);
     transition: opacity 0.18s ease-out, transform 0.18s ease-out;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.52);
+}
+
+.back-to-top .icon-svg {
+    width: 21px;
+    height: 21px;
 }
 
 .back-to-top.visible {
@@ -509,6 +515,24 @@ body[data-density="compact"] .series-badge {
     .year-pill {
         min-height: 32px;
         padding: 0.32rem 0.68rem;
+    }
+    .icon-svg {
+        width: 16px;
+        height: 16px;
+    }
+    .ig-btn .icon-svg {
+        width: 17px;
+        height: 17px;
+    }
+    .back-to-top {
+        width: 44px;
+        height: 44px;
+        right: 1rem;
+        bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+    }
+    .back-to-top .icon-svg {
+        width: 18px;
+        height: 18px;
     }
     .series-badge {
         top: 6px;
