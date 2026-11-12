@@ -220,7 +220,7 @@ function updateHTML(galleryData) {
 
         const hasAvatar = fs.existsSync(AVATAR_FILE);
         const avatarHtml = hasAvatar
-            ? `<img src="./images/avatar.jpg?v=${avatarVer}" alt="" width="48" height="48" decoding="async" class="brand-avatar">`
+            ? `<img src="./images/avatar.jpg?v=${avatarVer}" alt="" width="42" height="42" decoding="async" class="brand-avatar">`
             : `<span class="brand-avatar brand-monogram" aria-hidden="true">K</span>`;
 
         const stamp = escapeAttr((galleryData && galleryData.last_updated) ? galleryData.last_updated : "synced");

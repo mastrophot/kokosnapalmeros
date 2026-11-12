@@ -375,6 +375,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 hideClass: 'f-fadeOut',
                 dragToClose: true,
                 compact: false,
+                idle: false,
+                contentClick: false,
+                contentDblClick: 'toggleZoom',
+                backdropClick: 'close',
                 placeFocusBack: false,
                 caption: () => '',
                 Carousel: {
