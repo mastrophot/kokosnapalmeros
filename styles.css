@@ -6,7 +6,8 @@
 :root {
     --bg-canvas: #09090b;
     --bg-elevated: #121216;
-    --bg-header: rgba(9, 9, 11, 0.86);
+    --bg-header: rgba(9, 9, 11, 0.94);
+    --header-h: 109px;
     --bg-pill: rgba(255, 255, 255, 0.08);
     --bg-pill-hover: rgba(255, 255, 255, 0.14);
     --bg-pill-active: #ffffff;
@@ -41,6 +42,8 @@ body[data-density="compact"] {
 html {
     background-color: var(--bg-canvas);
     color-scheme: dark;
+    overflow-x: clip;
+    overscroll-behavior-y: none;
 }
 
 body {
@@ -49,25 +52,28 @@ body {
     color: var(--text-primary);
     line-height: 1.5;
     min-height: 100vh;
-    overflow-x: hidden;
-    position: relative;
-    isolation: isolate;
+    overscroll-behavior-y: none;
     -webkit-font-smoothing: antialiased;
 }
 
-body::before {
-    content: "";
+.site-bg {
     position: fixed;
     inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-color: var(--bg-canvas);
     background-image:
-        linear-gradient(180deg, rgba(9, 9, 11, 0.48) 0%, rgba(9, 9, 11, 0.74) 100%),
+        linear-gradient(
+            180deg,
+            rgba(9, 9, 11, 0.96) 0%,
+            rgba(9, 9, 11, 0.66) 24%,
+            rgba(9, 9, 11, 0.54) 58%,
+            rgba(9, 9, 11, 0.80) 100%
+        ),
         url("./images/background.jpg");
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
-    z-index: -1;
-    pointer-events: none;
-    transform: translateZ(0);
 }
 
 .icon-svg {
@@ -78,11 +84,13 @@ body::before {
 }
 
 /* ==========================================================================
-   Sticky Header (Seamless Obsidian Bar, Zero Backdrop-Filter)
+   Fixed Header (Locked to Viewport Top, Zero Overscroll Detach)
    ========================================================================== */
 .site-header {
-    position: sticky;
+    position: fixed;
     top: 0;
+    left: 0;
+    right: 0;
     z-index: 40;
     background: var(--bg-header);
     border-bottom: 1px solid var(--border-subtle);
@@ -285,10 +293,15 @@ body::before {
 /* ==========================================================================
    Gallery Grid & Cards (Borderless Edge-to-Edge + Subtle Inset Hairline)
    ========================================================================== */
+main {
+    position: relative;
+    z-index: 1;
+}
+
 #portfolio {
     max-width: 1520px;
     margin: 0 auto;
-    padding: 1.25rem 1.5rem 4rem;
+    padding: calc(var(--header-h) + 1.25rem) 1.5rem 4rem;
 }
 
 .gallery {
@@ -445,6 +458,7 @@ body[data-density="compact"] .series-badge {
 
 @media (max-width: 680px) {
     :root {
+        --header-h: 95px;
         --grid-cols: 2;
         --grid-gap: 6px;
         --radius-card: 8px;
@@ -465,7 +479,7 @@ body[data-density="compact"] .series-badge {
         gap: 0.35rem;
     }
     #portfolio {
-        padding: 0.5rem 0.5rem 3rem;
+        padding: calc(var(--header-h) + 0.5rem) 0.5rem 3rem;
     }
     .brand {
         gap: 0.55rem;

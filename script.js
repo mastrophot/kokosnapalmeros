@@ -5,12 +5,23 @@ document.addEventListener('DOMContentLoaded', () => {
     ];
     const SVG_NS = 'http://www.w3.org/2000/svg';
 
+    const siteHeader = document.querySelector('.site-header');
     const gallery = document.querySelector('.gallery');
     const brandHome = document.getElementById('brandHome');
     const backToTopBtn = document.getElementById('backToTop');
     const densityBtns = document.querySelectorAll('[data-set-density]');
     const viewBtns = document.querySelectorAll('[data-set-view]');
     const yearPills = document.querySelectorAll('.year-pill');
+
+    if (siteHeader) {
+        const syncHeaderHeight = () => {
+            document.documentElement.style.setProperty('--header-h', `${siteHeader.offsetHeight}px`);
+        };
+        syncHeaderHeight();
+        if (typeof ResizeObserver === 'function') {
+            new ResizeObserver(syncHeaderHeight).observe(siteHeader);
+        }
+    }
 
     // 1. Щільність сітки (comfy / compact)
     const savedDensity = localStorage.getItem('kokos_density') === 'compact' ? 'compact' : 'comfy';

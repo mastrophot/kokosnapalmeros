@@ -270,6 +270,7 @@ function updateHTML(galleryData) {
     <script src="vendor/fancybox.umd.js?v=${fbJsVer}" defer></script>
   </head>
   <body>
+    <div class="site-bg" aria-hidden="true"></div>
     <header class="site-header">
       <div class="header-inner">
         <div class="header-top">
