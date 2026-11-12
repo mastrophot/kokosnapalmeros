@@ -42,8 +42,6 @@ body[data-density="compact"] {
 html {
     background-color: var(--bg-canvas);
     color-scheme: dark;
-    overflow-x: clip;
-    overscroll-behavior-y: none;
 }
 
 body {
@@ -52,8 +50,14 @@ body {
     color: var(--text-primary);
     line-height: 1.5;
     min-height: 100vh;
-    overscroll-behavior-y: none;
     -webkit-font-smoothing: antialiased;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    html,
+    body {
+        overscroll-behavior-y: none;
+    }
 }
 
 .site-bg {
@@ -297,6 +301,7 @@ body {
 main {
     position: relative;
     z-index: 1;
+    overflow-x: clip;
 }
 
 #portfolio {
