@@ -22,9 +22,9 @@ const SITE_URL = "https://mastrophot.github.io/kokosnapalmeros/";
 
 const SAFE_FILENAME_RE = /^\d{4}[-_]\d{2}[-_]\d{2}_\d{2}-\d{2}-\d{2}_UTC(?:_[A-Za-z0-9_-]+)?\.jpg$/i;
 
-const MONTHS_UK = [
-    "січ", "лют", "бер", "кві", "тра", "чер",
-    "лип", "сер", "вер", "жов", "лис", "гру"
+const MONTHS_EN = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
 ];
 
 function readGalleryData() {
@@ -76,18 +76,18 @@ function escapeAttr(str) {
 
 function formatPhotoLabel(filename) {
     const m = filename.match(/^(\d{4})[-_](\d{2})[-_](\d{2})/);
-    if (!m) return "Фото @kokosnapalmeros";
+    if (!m) return "Photo by @kokosnapalmeros";
     const year = m[1];
     const monthIdx = parseInt(m[2], 10) - 1;
     const day = parseInt(m[3], 10);
-    const monthName = MONTHS_UK[monthIdx] || m[2];
+    const monthName = MONTHS_EN[monthIdx] || m[2];
     const numMatch = filename.match(/_(\d+)\.jpg$/i);
-    const suffix = numMatch ? `, кадр ${numMatch[1]}` : "";
-    return `Фото @kokosnapalmeros — ${day} ${monthName} ${year}${suffix}`;
+    const suffix = numMatch ? `, frame ${numMatch[1]}` : "";
+    return `Photo by @kokosnapalmeros — ${monthName} ${day}, ${year}${suffix}`;
 }
 
 function formatNumberSpaces(num) {
-    return String(num).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+    return String(num).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
 function updateHTML(galleryData) {
@@ -210,7 +210,7 @@ function updateHTML(galleryData) {
         }).join("\n");
 
         const yearPillsHtml = [
-            `<button type="button" class="year-pill active" data-year="all" data-series-count="${sortedSeries.length}" data-frames-count="${sortedPhotos.length}" aria-pressed="true">Усі <span class="year-count">${sortedPhotos.length}</span></button>`,
+            `<button type="button" class="year-pill active" data-year="all" data-series-count="${sortedSeries.length}" data-frames-count="${sortedPhotos.length}" aria-pressed="true">All <span class="year-count">${sortedPhotos.length}</span></button>`,
             ...sortedYears.map(yr => {
                 const sCount = yearSeriesCounts.get(yr) || 0;
                 const fCount = yearFrameCounts.get(yr) || 0;
@@ -224,7 +224,7 @@ function updateHTML(galleryData) {
             : `<span class="brand-avatar brand-monogram" aria-hidden="true">K</span>`;
 
         const stamp = escapeAttr((galleryData && galleryData.last_updated) ? galleryData.last_updated : "synced");
-        const metaDescription = escapeAttr(`Візуальний фотоархів @kokosnapalmeros — ${totalFramesFormatted} фото, ${totalSeriesFormatted} серій (${minYear}–${maxYear}).`);
+        const metaDescription = escapeAttr(`Visual photo archive by @kokosnapalmeros — ${totalFramesFormatted} photos across ${totalSeriesFormatted} series (${minYear}–${maxYear}).`);
         const ogCover = sortedPhotos[0] ? `images/${sortedPhotos[0]}` : "images/background.jpg";
         const ogImageUrl = `${SITE_URL}${ogCover}`;
 
@@ -243,25 +243,25 @@ function updateHTML(galleryData) {
         ].join("; ");
 
         const fullHtml = `<!DOCTYPE html>
-<html lang="uk">
+<html lang="en">
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta http-equiv="Content-Security-Policy" content="${cspPolicy}">
     <meta name="referrer" content="strict-origin-when-cross-origin">
     <meta name="theme-color" content="#09090b">
-    <title>kokosnapalmeros — Фотоархів</title>
+    <title>kokosnapalmeros — Photo Archive</title>
     <meta name="description" content="${metaDescription}">
     <link rel="canonical" href="${SITE_URL}">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="kokosnapalmeros">
-    <meta property="og:locale" content="uk_UA">
-    <meta property="og:title" content="kokosnapalmeros — Фотоархів">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:title" content="kokosnapalmeros — Photo Archive">
     <meta property="og:description" content="${metaDescription}">
     <meta property="og:url" content="${SITE_URL}">
     <meta property="og:image" content="${ogImageUrl}">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="kokosnapalmeros — Фотоархів">
+    <meta name="twitter:title" content="kokosnapalmeros — Photo Archive">
     <meta name="twitter:description" content="${metaDescription}">
     <meta name="twitter:image" content="${ogImageUrl}">
     <link rel="icon" href="${faviconSvg}">
@@ -273,21 +273,21 @@ function updateHTML(galleryData) {
     <header class="site-header">
       <div class="header-inner">
         <div class="header-top">
-          <a href="./" class="brand" id="brandHome" aria-label="kokosnapalmeros — на початок архіву">
+          <a href="./" class="brand" id="brandHome" aria-label="kokosnapalmeros — back to archive start">
             ${avatarHtml}
             <div class="brand-text">
               <span class="brand-title">kokosnapalmeros</span>
-              <span class="brand-subtitle">${totalFramesFormatted} фото · ${totalSeriesFormatted} серій · ${minYear}–${maxYear}</span>
+              <span class="brand-subtitle">${totalFramesFormatted} photos · ${totalSeriesFormatted} series · ${minYear}–${maxYear}</span>
             </div>
           </a>
           <div class="header-actions">
-            <div class="control-group" role="group" aria-label="Режим подачі">
-              <button type="button" class="ctrl-btn active" data-set-view="frames" aria-pressed="true" title="Показати всі кадри окремо">Кадри</button>
-              <button type="button" class="ctrl-btn" data-set-view="series" aria-pressed="false" title="Групувати каруселі в серії">Серії</button>
+            <div class="control-group" role="group" aria-label="View mode">
+              <button type="button" class="ctrl-btn active" data-set-view="frames" aria-pressed="true" title="Show all individual frames">Frames</button>
+              <button type="button" class="ctrl-btn" data-set-view="series" aria-pressed="false" title="Group carousels into series">Series</button>
             </div>
-            <div class="control-group" role="group" aria-label="Щільність сітки">
-              <button type="button" class="ctrl-btn active" data-set-density="comfy" aria-label="Стандартна сітка" aria-pressed="true" title="Стандартна сітка">${svgGridComfy}</button>
-              <button type="button" class="ctrl-btn" data-set-density="compact" aria-label="Щільна сітка" aria-pressed="false" title="Щільна сітка">${svgGridCompact}</button>
+            <div class="control-group" role="group" aria-label="Grid density">
+              <button type="button" class="ctrl-btn active" data-set-density="comfy" aria-label="Standard grid" aria-pressed="true" title="Standard grid">${svgGridComfy}</button>
+              <button type="button" class="ctrl-btn" data-set-density="compact" aria-label="Compact grid" aria-pressed="false" title="Compact grid">${svgGridCompact}</button>
             </div>
             <a href="https://www.instagram.com/kokosnapalmeros/" target="_blank" rel="noopener noreferrer" class="ig-btn" aria-label="Instagram @kokosnapalmeros">
               ${svgInstagram}
@@ -295,7 +295,7 @@ function updateHTML(galleryData) {
             </a>
           </div>
         </div>
-        <nav class="year-nav" aria-label="Фільтр за роками">
+        <nav class="year-nav" aria-label="Filter by year">
           ${yearPillsHtml}
         </nav>
       </div>
@@ -306,11 +306,11 @@ function updateHTML(galleryData) {
         <div class="gallery" id="gallery">
 ${cardsHtml}
         </div>
-        <!-- Останнє оновлення: ${stamp} -->
+        <!-- Last updated: ${stamp} -->
       </section>
     </main>
 
-    <button type="button" id="backToTop" class="back-to-top" aria-label="Нагору">
+    <button type="button" id="backToTop" class="back-to-top" aria-label="Back to top" title="Back to top">
       ${svgArrowUp}
     </button>
 

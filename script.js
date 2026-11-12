@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const MONTHS_UK = [
-        'січ', 'лют', 'бер', 'кві', 'тра', 'чер',
-        'лип', 'сер', 'вер', 'жов', 'лис', 'гру'
+    const MONTHS_EN = [
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
     ];
     const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -43,29 +43,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const formatPhotoLabel = (filename) => {
         const m = filename.match(/^(\d{4})[-_](\d{2})[-_](\d{2})/);
-        if (!m) return 'Фото @kokosnapalmeros';
+        if (!m) return 'Photo by @kokosnapalmeros';
         const year = m[1];
         const monthIdx = parseInt(m[2], 10) - 1;
         const day = parseInt(m[3], 10);
-        const monthName = MONTHS_UK[monthIdx] || m[2];
+        const monthName = MONTHS_EN[monthIdx] || m[2];
         const numMatch = filename.match(/_(\d+)\.jpg$/i);
-        const suffix = numMatch ? `, кадр ${numMatch[1]}` : '';
-        return `Фото @kokosnapalmeros — ${day} ${monthName} ${year}${suffix}`;
+        const suffix = numMatch ? `, frame ${numMatch[1]}` : '';
+        return `Photo by @kokosnapalmeros — ${monthName} ${day}, ${year}${suffix}`;
     };
 
     const formatSeriesLabel = (filename, count) => {
         const m = filename.match(/^(\d{4})[-_](\d{2})[-_](\d{2})/);
         if (!m) {
-            return count > 1 ? `Серія @kokosnapalmeros (${count} фото)` : 'Фото @kokosnapalmeros';
+            return count > 1 ? `Series by @kokosnapalmeros (${count} photos)` : 'Photo by @kokosnapalmeros';
         }
         const year = m[1];
         const monthIdx = parseInt(m[2], 10) - 1;
         const day = parseInt(m[3], 10);
-        const monthName = MONTHS_UK[monthIdx] || m[2];
+        const monthName = MONTHS_EN[monthIdx] || m[2];
         if (count > 1) {
-            return `Серія @kokosnapalmeros — ${day} ${monthName} ${year} (${count} фото)`;
+            return `Series by @kokosnapalmeros — ${monthName} ${day}, ${year} (${count} photos)`;
         }
-        return `Фото @kokosnapalmeros — ${day} ${monthName} ${year}`;
+        return `Photo by @kokosnapalmeros — ${monthName} ${day}, ${year}`;
     };
 
     const parseEntry = (rawEntry) => {

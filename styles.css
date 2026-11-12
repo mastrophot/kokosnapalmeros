@@ -6,9 +6,9 @@
 :root {
     --bg-canvas: #09090b;
     --bg-elevated: #121216;
-    --bg-header: #09090b;
-    --bg-pill: rgba(255, 255, 255, 0.06);
-    --bg-pill-hover: rgba(255, 255, 255, 0.12);
+    --bg-header: rgba(9, 9, 11, 0.86);
+    --bg-pill: rgba(255, 255, 255, 0.08);
+    --bg-pill-hover: rgba(255, 255, 255, 0.14);
     --bg-pill-active: #ffffff;
     --text-primary: #f4f4f6;
     --text-secondary: #a1a1aa;
@@ -45,12 +45,29 @@ html {
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif;
-    background-color: var(--bg-canvas);
+    background-color: transparent;
     color: var(--text-primary);
     line-height: 1.5;
     min-height: 100vh;
     overflow-x: hidden;
+    position: relative;
+    isolation: isolate;
     -webkit-font-smoothing: antialiased;
+}
+
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image:
+        linear-gradient(180deg, rgba(9, 9, 11, 0.48) 0%, rgba(9, 9, 11, 0.74) 100%),
+        url("./images/background.jpg");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    z-index: -1;
+    pointer-events: none;
+    transform: translateZ(0);
 }
 
 .icon-svg {
